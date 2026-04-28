@@ -1,0 +1,1269 @@
+<!DOCTYPE html>
+<!--
+  ============================================================
+  index.html — メインHTMLファイル（HTML構造 + CSS のみ）
+  ============================================================
+
+  【このファイルの役割】
+    画面レイアウト・スタイル定義と、外部JSファイルの読み込みだけを担当します。
+    ゲームロジックはすべて外部JSファイルに分離されています。
+
+  【ファイル読み込み順序（順番を変えないこと）】
+    1.  gamedata.js                マスターデータ（種族・職業・アイテム・モンスター）
+    2.  gamestate.js               共有ゲーム状態(GS) + ユーティリティ関数
+    3.  system_char.js             キャラクター計算・作成
+    4.  system_dungeon.js          ダンジョン生成・描画・移動・戦闘
+    5.  system_ui.js               UI更新・装備・アイテム操作
+    6.  system_town_common.js      町共通（showTown/CM/キャラステ/装備制限/INIT）← 他townより必ず先
+    7.  system_town_inn.js         宿屋
+    8.  system_town_tavern.js      酒場（PT編成・アイテム管理）
+    9.  system_town_church.js      教会
+    10. system_town_shop.js        ショップ
+    11. system_town_smith.js       鍛冶屋（分解・強化・弱体）
+    12. system_town_training.js    訓練場（育成・転職）
+    13. system_town_outskirts.js   城外・百科事典
+    14. system_town_temple.js      邪教の館
+    15. system_town_gacha.js       ガチャ
+    16. system_town_options.js     オプション
+
+  【並行開発するときのルール】
+    - 各モジュール担当者は GS（gamestate.js）の構造を変えないこと
+    - DATA（gamedata.js）のアイテムIDを変更するときは全員に共有すること
+    - 画面IDや関数名を変更するときはこのファイルと合わせて確認すること
+
+  【画面（screen）一覧】
+    #title-screen   タイトル画面
+    #town-screen    街メイン
+    #main-screen    ダンジョン探索
+    #battle-screen  戦闘
+  ============================================================
+-->
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<link rel="manifest" href="manifest.json">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<!-- v20260425025812 -->
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ウィザードリィ外伝II風 ダンジョンRPG</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700;900&family=Share+Tech+Mono&display=swap');
+
+:root {
+  --bg: #0a0a0f;
+  --bg2: #0f0f1a;
+  --bg3: #141428;
+  --panel: #0d0d20;
+  --border: #2a2a5a;
+  --border2: #3a3a7a;
+  --gold: #c8a020;
+  --gold2: #e8c040;
+  --green: #20c820;
+  --green2: #40e840;
+  --red: #c82020;
+  --red2: #e84040;
+  --blue: #2080e8;
+  --blue2: #40a0ff;
+  --cyan: #20c8c8;
+  --purple: #8020c8;
+  --white: #e0e0f0;
+  --gray: #606080;
+  --yellow: #e8e020;
+  --orange: #e86020;
+  --font-mono: 'Share Tech Mono', 'Courier New', monospace;
+  --font-jp: 'Noto Sans JP', sans-serif;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--white);
+  font-family: var(--font-jp);
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 8px;
+  overflow-x: hidden;
+}
+
+#app {
+  width: 100%;
+  max-width: 1100px;
+}
+
+/* ====== SCREENS ====== */
+.screen { display: none; }
+.screen.active { display: block; }
+
+/* ====== TITLE SCREEN ====== */
+#title-screen {
+  min-height: 100vh;
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+#title-screen.active { display: flex; }
+
+.title-art {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--gold);
+  white-space: pre;
+  text-shadow: 0 0 20px var(--gold);
+  margin-bottom: 20px;
+  line-height: 1.2;
+}
+
+.title-text {
+  font-size: 28px;
+  font-weight: 900;
+  color: var(--gold2);
+  text-shadow: 0 0 30px var(--gold), 0 0 60px var(--gold);
+  letter-spacing: 4px;
+  margin-bottom: 8px;
+}
+.title-sub {
+  font-size: 14px;
+  color: var(--cyan);
+  letter-spacing: 6px;
+  margin-bottom: 40px;
+}
+
+.menu-btn {
+  display: block;
+  width: 280px;
+  padding: 14px 20px;
+  margin: 8px auto;
+  background: var(--panel);
+  border: 2px solid var(--border2);
+  color: var(--white);
+  font-family: var(--font-jp);
+  font-size: 16px;
+  cursor: pointer;
+  transition: all 0.15s;
+  text-align: center;
+  letter-spacing: 2px;
+}
+.menu-btn:hover {
+  background: var(--border);
+  border-color: var(--gold);
+  color: var(--gold2);
+  text-shadow: 0 0 10px var(--gold);
+}
+
+/* ====== MAIN LAYOUT ====== */
+#main-screen {
+  display: none;
+  grid-template-areas:
+    "header header"
+    "dungeon sidebar"
+    "log log";
+  grid-template-columns: 1fr 320px;
+  grid-template-rows: auto 1fr auto;
+  gap: 6px;
+  min-height: 100vh;
+}
+#main-screen.active { display: grid; }
+
+/* スマホ：1カラム（sidebar は非表示） */
+@media (max-width: 640px) {
+  #main-screen {
+    grid-template-areas:
+      "header"
+      "dungeon"
+      "log";
+    grid-template-columns: 1fr;
+  }
+  #sidebar { display: none; }
+  #party-panel { width: 100%; }
+}
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  padding: 8px;
+}
+.panel-title {
+  font-size: 11px;
+  color: var(--gold);
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 4px;
+  margin-bottom: 6px;
+  letter-spacing: 2px;
+  font-family: var(--font-mono);
+}
+
+/* ====== HEADER ====== */
+#header {
+  grid-area: header;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+}
+.hdr-title { font-size: 14px; color: var(--gold); font-family: var(--font-mono); letter-spacing: 2px; flex: 1; }
+.hdr-info { font-size: 12px; color: var(--cyan); font-family: var(--font-mono); }
+.hdr-btn {
+  padding: 4px 10px;
+  background: var(--bg3);
+  border: 1px solid var(--border2);
+  color: var(--white);
+  font-size: 11px;
+  cursor: pointer;
+  font-family: var(--font-jp);
+}
+.hdr-btn:hover { border-color: var(--gold); color: var(--gold); }
+
+/* ====== DUNGEON VIEW ====== */
+#dungeon-area {
+  grid-area: dungeon;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+#dungeon-view {
+  position: relative;
+  background: #000;
+  border: 2px solid var(--border2);
+  height: 320px;
+  overflow: hidden;
+}
+
+/* 一人称3D風ダンジョン */
+#dungeon-canvas {
+  width: 100%;
+  height: 100%;
+}
+
+/* ====== MAP ====== */
+#auto-map {
+  width: 180px;
+  height: 180px;
+  background: #000;
+  border: 1px solid var(--border);
+  flex-shrink: 0;
+  position: relative;
+}
+#map-canvas { display: block; }
+
+/* ====== PARTY PANEL は action-btn セクション後の新定義を参照 ====== */
+
+.char-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 4px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  margin-bottom: 2px;
+  font-size: 12px;
+}
+.char-row:hover { border-color: var(--border2); background: var(--bg3); }
+.char-row.selected { border-color: var(--gold); background: var(--bg3); }
+.char-row.dead { opacity: 0.4; }
+.char-row.monster-member { border-left: 2px solid var(--green); }
+
+.char-pos { font-size: 9px; color: var(--gray); width: 16px; font-family: var(--font-mono); }
+.char-name { flex: 1; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.char-class { font-size: 9px; color: var(--cyan); width: 44px; }
+.char-hp { font-size: 10px; font-family: var(--font-mono); width: 56px; text-align: right; }
+
+.hp-bar { height: 3px; background: var(--bg); border: 1px solid var(--border); margin-top: 1px; }
+.hp-fill { height: 100%; transition: width 0.3s; }
+
+/* ====== SIDEBAR ====== */
+#sidebar {
+  grid-area: sidebar;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  overflow-y: auto;
+  max-height: calc(100vh - 60px);
+}
+
+/* ====== PARTY PANEL（map-panelの外・dungeon-area直下） ====== */
+#party-panel {
+  width: 100%;
+}
+
+/* ====== ACTION BUTTONS ====== */
+#map-panel {
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
+}
+#action-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+/* 3列×2行グリッド: [調べる][↑][↓] / [↺↻][←][→] */
+#action-area {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+}
+/* 向き・街(CM)・MAP・広告 の 2×2+1段 */
+#turn-sub-area {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 4px;
+}
+.action-btn {
+  padding: 8px 4px;
+  background: var(--bg3);
+  border: 1px solid var(--border2);
+  color: var(--white);
+  font-size: 12px;
+  cursor: pointer;
+  text-align: center;
+  font-family: var(--font-jp);
+  transition: all 0.1s;
+}
+.action-btn:hover { background: var(--border); color: var(--gold2); border-color: var(--gold); }
+.action-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+.action-btn.dir { font-size: 18px; padding: 6px; }
+
+/* ====== PARTY ROW（隊列|Lv|名前|職業|HP|MP） ====== */
+.party-row {
+  display: grid;
+  grid-template-columns: 22px 20px 1fr 30px 72px 56px;
+  align-items: center;
+  gap: 3px;
+  padding: 4px 4px;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  font-size: 11px;
+  min-height: 30px;
+}
+.party-row:hover { background: var(--bg3); }
+.party-row.dead { opacity: 0.45; }
+.party-row.monster-member { border-left: 2px solid var(--green); }
+
+.pr-pos  { font-size: 9px; color: var(--cyan); font-family: var(--font-mono); }
+.pr-lv   { font-size: 9px; color: var(--gray); font-family: var(--font-mono); text-align: right; }
+.pr-name { font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pr-job  { font-size: 9px; color: var(--cyan); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pr-hp   { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.pr-mp   { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.pr-val  { font-size: 9px; font-family: var(--font-mono); line-height: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.party-bar {
+  height: 3px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+}
+.party-bar-fill { height: 100%; transition: width 0.3s; }
+
+/* ====== LOG ====== */
+#log-area {
+  grid-area: log;
+}
+#log-box {
+  height: 100px;
+  overflow-y: auto;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.5;
+  padding: 4px;
+  background: #000;
+  border: 1px solid var(--border);
+}
+.log-entry { padding: 1px 0; }
+.log-sys { color: var(--gray); }
+.log-combat { color: var(--red2); }
+.log-item { color: var(--gold2); }
+.log-magic { color: var(--blue2); }
+.log-monster { color: var(--green2); }
+.log-event { color: var(--yellow); }
+.log-levelup { color: var(--yellow); font-weight: bold; text-shadow: 0 0 8px var(--yellow); }
+.log-statup   { color: var(--green2); }
+.log-statdown { color: var(--red2); }
+
+/* ====== BATTLE SCREEN ====== */
+#battle-screen {
+  display: none;
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.95);
+  z-index: 100;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 10px;
+}
+#battle-screen.active { display: flex; }
+
+#battle-layout {
+  width: 100%;
+  max-width: 900px;
+  display: grid;
+  grid-template-rows: auto auto auto auto;
+  gap: 8px;
+}
+
+#battle-enemy-area {
+  background: var(--panel);
+  border: 2px solid var(--red);
+  padding: 10px;
+  min-height: 120px;
+}
+.battle-title { color: var(--red2); font-size: 11px; font-family: var(--font-mono); letter-spacing: 2px; margin-bottom: 6px; }
+
+.enemy-groups {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.enemy-group {
+  background: var(--bg3);
+  border: 1px solid var(--border2);
+  padding: 6px 8px;
+  min-width: 100px;
+}
+.enemy-group-label { font-size: 9px; color: var(--gray); margin-bottom: 3px; font-family: var(--font-mono); }
+.enemy-card {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 2px;
+  cursor: pointer;
+  padding: 2px;
+  font-size: 11px;
+}
+.enemy-card:hover { background: var(--border); }
+.enemy-card.targeted { background: var(--border2); outline: 1px solid var(--red2); }
+.enemy-card.dead { opacity: 0.3; text-decoration: line-through; }
+.enemy-hp-bar { width: 40px; height: 4px; background: var(--bg); border: 1px solid var(--border); display: inline-block; vertical-align: middle; }
+.enemy-hp-fill { height: 100%; background: var(--red2); }
+
+#battle-log {
+  background: #000;
+  border: 1px solid var(--border);
+  height: 100px;
+  overflow-y: auto;
+  padding: 6px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+#battle-party-area {
+  background: var(--panel);
+  border: 2px solid var(--blue);
+  padding: 8px;
+}
+.battle-chars {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+}
+.battle-char {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  padding: 4px 6px;
+  font-size: 11px;
+  cursor: pointer;
+}
+.battle-char.selected { border-color: var(--gold); }
+.battle-char.dead { opacity: 0.3; }
+.battle-char.acting { border-color: var(--yellow); background: var(--bg2); }
+.battle-char.defending { border-color: var(--blue); }
+.bc-name { font-size: 11px; font-weight: bold; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bc-class { font-size: 9px; color: var(--cyan); }
+.bc-hp { font-size: 10px; font-family: var(--font-mono); color: var(--green); }
+.bc-status { font-size: 9px; color: var(--orange); }
+
+#battle-cmd-area {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  padding: 8px;
+}
+.cmd-row { display: flex; gap: 6px; flex-wrap: wrap; }
+.cmd-btn {
+  padding: 8px 14px;
+  background: var(--bg3);
+  border: 2px solid var(--border2);
+  color: var(--white);
+  font-size: 13px;
+  cursor: pointer;
+  font-family: var(--font-jp);
+  transition: all 0.1s;
+  min-width: 70px;
+}
+.cmd-btn:hover { background: var(--border2); border-color: var(--gold); color: var(--gold2); }
+.cmd-btn.active { border-color: var(--gold); color: var(--gold2); background: var(--border); }
+.cmd-btn.auto-on { border-color: var(--green); color: var(--green2); background: var(--bg3); }
+
+/* ====== TOWN SCREEN ====== */
+#town-screen {
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  min-height: 100vh;
+  padding: 20px;
+}
+#town-screen.active { display: flex; }
+
+.town-title {
+  font-size: 22px;
+  font-weight: 900;
+  color: var(--gold2);
+  letter-spacing: 4px;
+  margin-bottom: 20px;
+  text-shadow: 0 0 20px var(--gold);
+  font-family: var(--font-mono);
+}
+.town-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  width: 100%;
+  max-width: 760px;
+}
+.town-card {
+  background: var(--panel);
+  border: 2px solid var(--border2);
+  padding: 20px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.town-card:hover {
+  border-color: var(--gold);
+  background: var(--bg3);
+  transform: translateY(-2px);
+}
+.town-card-icon { font-size: 32px; margin-bottom: 8px; }
+.town-card-name { font-size: 14px; color: var(--gold2); font-weight: bold; }
+.town-card-desc { font-size: 10px; color: var(--gray); margin-top: 4px; }
+
+/* ====== MODAL ====== */
+.modal-overlay {
+  display: none;
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.85);
+  z-index: 200;
+  align-items: center;
+  justify-content: center;
+}
+.modal-overlay.active { display: flex; }
+.modal-box {
+  background: var(--panel);
+  border: 2px solid var(--border2);
+  padding: 16px;
+  width: 90%;
+  max-width: 700px;
+  max-height: 90vh;
+  overflow-y: auto;
+  position: relative;
+}
+.modal-title {
+  font-size: 16px;
+  color: var(--gold2);
+  border-bottom: 1px solid var(--border2);
+  padding-bottom: 8px;
+  margin-bottom: 12px;
+  font-family: var(--font-mono);
+  letter-spacing: 2px;
+}
+.modal-close {
+  position: absolute;
+  top: 10px; right: 10px;
+  background: none;
+  border: 1px solid var(--border2);
+  color: var(--gray);
+  cursor: pointer;
+  padding: 2px 8px;
+  font-size: 12px;
+}
+.modal-close:hover { color: var(--white); border-color: var(--white); }
+
+/* ====== STATUS SCREEN ====== */
+.status-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.stat-block {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  padding: 8px;
+}
+.stat-title { font-size: 10px; color: var(--gold); margin-bottom: 6px; font-family: var(--font-mono); }
+.stat-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  padding: 2px 0;
+  border-bottom: 1px solid var(--border);
+}
+.stat-label { color: var(--gray); }
+.stat-val { color: var(--white); font-family: var(--font-mono); }
+
+/* ====== EQUIP SLOT ====== */
+.equip-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 4px;
+}
+.equip-slot {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  padding: 4px 6px;
+  font-size: 10px;
+  cursor: pointer;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.equip-slot:hover { border-color: var(--gold); }
+.equip-slot-label { color: var(--gray); font-size: 9px; width: 40px; }
+.equip-slot-item { color: var(--cyan); flex: 1; }
+
+/* ====== ITEM LIST ====== */
+.item-list { max-height: 300px; overflow-y: auto; }
+.item-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  font-size: 11px;
+}
+.item-row:hover { background: var(--bg3); }
+.item-row.selected { background: var(--border); }
+.item-name { flex: 1; }
+.item-type { font-size: 9px; color: var(--cyan); width: 50px; }
+.item-val { font-size: 10px; color: var(--gold); width: 50px; text-align: right; font-family: var(--font-mono); }
+
+/* ====== MAGIC LIST ====== */
+.magic-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 4px;
+}
+.magic-btn {
+  padding: 6px;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  color: var(--blue2);
+  font-size: 11px;
+  cursor: pointer;
+  text-align: left;
+  font-family: var(--font-jp);
+}
+.magic-btn:hover { border-color: var(--blue2); background: var(--border); }
+.magic-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+.magic-cost { float: right; color: var(--gray); font-size: 9px; font-family: var(--font-mono); }
+
+/* ====== CHAR CREATE ====== */
+.create-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.race-card, .job-card {
+  background: var(--bg3);
+  border: 2px solid var(--border);
+  padding: 8px;
+  cursor: pointer;
+  text-align: center;
+  font-size: 12px;
+  transition: all 0.1s;
+}
+.race-card:hover, .job-card:hover { border-color: var(--gold); color: var(--gold2); }
+.race-card.selected, .job-card.selected { border-color: var(--gold2); background: var(--border); color: var(--gold2); }
+.race-card.disabled, .job-card.disabled { opacity: 0.3; cursor: not-allowed; }
+
+/* ====== SHOP ====== */
+.shop-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+/* ====== SCROLLBAR ====== */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--border2); }
+::-webkit-scrollbar-thumb:hover { background: var(--gold); }
+
+/* ====== UTILITIES ====== */
+.gold-text { color: var(--gold2); }
+.red-text { color: var(--red2); }
+.green-text { color: var(--green2); }
+.blue-text { color: var(--blue2); }
+.gray-text { color: var(--gray); }
+.mono { font-family: var(--font-mono); }
+.flex { display: flex; gap: 6px; align-items: center; }
+.flex-end { justify-content: flex-end; }
+.mt4 { margin-top: 4px; }
+.mt8 { margin-top: 8px; }
+.w100 { width: 100%; }
+.text-center { text-align: center; }
+
+.separator { height: 1px; background: var(--border); margin: 8px 0; }
+
+/* 転職 */
+.job-req { font-size: 9px; color: var(--gray); margin-top: 2px; }
+.job-name { font-size: 12px; font-weight: bold; }
+
+/* Monster join overlay */
+#monster-join-overlay {
+  display: none;
+  position: fixed;
+  top: 50%; left: 50%;
+  transform: translate(-50%,-50%);
+  background: var(--panel);
+  border: 2px solid var(--green);
+  padding: 16px;
+  z-index: 300;
+  text-align: center;
+  min-width: 280px;
+}
+#monster-join-overlay.active { display: block; }
+
+/* CM modal */
+#cm-overlay {
+  display: none;
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.95);
+  z-index: 400;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+}
+#cm-overlay.active { display: flex; }
+#cm-box {
+  background: var(--panel);
+  border: 3px solid var(--gold);
+  padding: 24px;
+  text-align: center;
+  max-width: 400px;
+}
+#cm-timer { font-size: 48px; font-family: var(--font-mono); color: var(--gold2); margin: 16px 0; }
+#cm-bar { width: 100%; height: 8px; background: var(--bg); border: 1px solid var(--border); margin-bottom: 16px; }
+#cm-bar-fill { height: 100%; background: var(--gold); transition: width 0.1s; }
+
+/* Companion select overlay */
+#companion-select-overlay {
+  display: none;
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.9);
+  z-index: 350;
+  align-items: center;
+  justify-content: center;
+}
+#companion-select-overlay.active { display: flex; }
+
+/* Blink animation */
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+.blink { animation: blink 1s infinite; }
+
+/* Pulse */
+@keyframes pulse { 0%,100%{transform:scale(1)} 50%{transform:scale(1.02)} }
+
+/* Trap flash */
+@keyframes flash-red { 0%,100%{background:transparent} 50%{background:rgba(200,32,32,0.3)} }
+.flash-red { animation: flash-red 0.3s; }
+
+/* FadeIn */
+@keyframes fadeIn { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }
+.fade-in { animation: fadeIn 0.35s ease; }
+
+/* ====== MONSTER RANK BADGES ====== */
+.rank-badge {
+  display: inline-block;
+  font-size: 9px;
+  font-family: var(--font-mono);
+  font-weight: bold;
+  padding: 1px 5px;
+  border-radius: 3px;
+  letter-spacing: 1px;
+  vertical-align: middle;
+}
+.rank-F { background:#1a1a2a; color:#808098; border:1px solid #404060; }
+.rank-E { background:#0a1a0a; color:#60a060; border:1px solid #204020; }
+.rank-D { background:#0a100a; color:#40c040; border:1px solid #206020; }
+.rank-C { background:#0a0a1a; color:#4080e0; border:1px solid #204080; }
+.rank-B { background:#1a0a1a; color:#a040e0; border:1px solid #601090; }
+.rank-A { background:#1a0808; color:#e04040; border:1px solid #801010; }
+.rank-S { background:#1a1000; color:#e0c000; border:1px solid #806000; text-shadow:0 0 6px var(--gold); }
+.rank-SS { background:#1a0800; color:#ff8000; border:1px solid #a04000; text-shadow:0 0 8px orange; }
+.rank-SSS { background:#200010; color:#ff40ff; border:1px solid #a000a0; text-shadow:0 0 10px magenta; }
+
+/* Status badges */
+.status-badge {
+  display: inline-block;
+  font-size: 8px;
+  padding: 1px 3px;
+  border-radius: 2px;
+  margin-left: 2px;
+  font-family: var(--font-mono);
+}
+.status-poison { background: var(--purple); color: #fff; }
+.status-sleep { background: #204080; color: #adf; }
+.status-stone { background: #404040; color: #aaa; }
+.status-paralyze { background: var(--yellow); color: #000; }
+.status-confused { background: var(--orange); color: #000; }
+
+/* Gold display */
+#gold-display { font-family: var(--font-mono); font-size: 12px; color: var(--gold2); }
+
+/* Floor display */
+#floor-display { font-family: var(--font-mono); font-size: 13px; color: var(--cyan); }
+
+/* ====== EQUIP DROPDOWN ====== */
+.equip-slot.has-options { cursor: pointer; }
+.equip-slot.has-options:hover { border-color: var(--gold); background: var(--bg3); }
+.equip-dropdown {
+  background: var(--bg2);
+  border: 1px solid var(--gold);
+  margin-top: -1px;
+  margin-bottom: 4px;
+  grid-column: 1 / -1;
+  z-index: 10;
+}
+.equip-option {
+  padding: 5px 8px;
+  cursor: pointer;
+  font-size: 11px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+}
+.equip-option:hover { background: var(--border); color: var(--gold2); }
+.equip-option:first-child { color: var(--red2); }
+
+/* ====== MINI BUTTONS ====== */
+.mini-btn {
+  font-size: 10px;
+  padding: 2px 5px;
+  background: var(--bg3);
+  border: 1px solid var(--border2);
+  color: var(--white);
+  cursor: pointer;
+  margin-left: 2px;
+  font-family: var(--font-jp);
+}
+.mini-btn:hover { border-color: var(--gold); color: var(--gold2); }
+.mini-btn.equip-btn { border-color: var(--cyan); color: var(--cyan); }
+.mini-btn.equip-btn:hover { background: var(--border); color: var(--gold2); }
+.mini-btn.use-btn { border-color: var(--green); color: var(--green2); }
+.mini-btn.drop-btn { border-color: var(--red); color: var(--red2); }
+
+/* Level up log highlight */
+.log-levelup { color: var(--yellow); font-weight: bold; }
+.log-statup   { color: var(--green2); }
+.log-statdown { color: var(--red2); }
+</style>
+</head>
+<body>
+<div id="app">
+
+<!-- ===== TITLE ===== -->
+<div id="title-screen" class="screen">
+  <div class="title-art">
+╔══════════════════════════════════════════════════════════╗
+║  ██╗    ██╗██╗███████╗ █████╗ ██████╗ ██████╗ ██╗   ██╗ ║
+║  ██║    ██║██║╚══███╔╝██╔══██╗██╔══██╗██╔══██╗╚██╗ ██╔╝ ║
+║  ██║ █╗ ██║██║  ███╔╝ ███████║██████╔╝██║  ██║ ╚████╔╝  ║
+║  ██║███╗██║██║ ███╔╝  ██╔══██║██╔══██╗██║  ██║  ╚██╔╝   ║
+║  ╚███╔███╔╝██║███████╗██║  ██║██║  ██║██████╔╝   ██║    ║
+║   ╚══╝╚══╝ ╚═╝╚══════╝╚═╝  ╚═╝╚═╝  ╚═╝╚═════╝    ╚═╝   ║
+╚══════════════════════════════════════════════════════════╝</div>
+  <div class="title-text">GAIDEN II 風</div>
+  <div class="title-sub">DUNGEON RPG</div>
+  <button class="menu-btn" onclick="Game.newGame()">【 新規ゲーム 】</button>
+  <button class="menu-btn" onclick="Game.loadGame()">【 続きから 】</button>
+  <button class="menu-btn" onclick="showModal('manual-modal')">【 遊び方 】</button>
+  <div style="margin-top:30px;font-size:10px;color:var(--gray);">Space: Move Forward | WASD: Turn/Move | E: Interact</div>
+</div>
+
+<!-- ===== MANUAL MODAL ===== -->
+<div id="manual-modal" class="modal-overlay">
+  <div class="modal-box" style="max-width:600px">
+    <div class="modal-title">【 遊び方 】</div>
+    <button class="modal-close" onclick="hideModal('manual-modal')">×</button>
+    <div style="font-size:12px;line-height:1.8;color:var(--white);">
+      <p class="gold-text" style="font-size:13px;margin-bottom:8px;">■ 基本操作</p>
+      <p>・W/↑: 前進　S/↓: 後退　A/←: 左回転　D/→: 右回転</p>
+      <p>・Q: 左平行移動　E: 右平行移動</p>
+      <p>・ダンジョン内でマップが自動作成されます</p>
+      <div class="separator"></div>
+      <p class="gold-text" style="font-size:13px;margin-bottom:8px;">■ 戦闘</p>
+      <p>・AUTO: 全キャラ自動戦闘</p>
+      <p>・攻撃: 対象エネミーを選んで攻撃</p>
+      <p>・魔法: MP消費でスペルを使用</p>
+      <p>・防御: このターン被ダメージ50%減</p>
+      <p>・逃走: ランダムで逃走可能</p>
+      <div class="separator"></div>
+      <p class="gold-text" style="font-size:13px;margin-bottom:8px;">■ 街</p>
+      <p>・宿泊所: 宿泊→レベルアップ可能</p>
+      <p>・酒場: パーティメンバーの入れ替え</p>
+      <p>・協会: 蘇生・状態異常回復</p>
+      <p>・道具屋: アイテム売買</p>
+      <p>・鍛冶屋: 装備品の分解・強化・弱体</p>
+      <p>・訓練所: キャラ作成・転職</p>
+      <p>・街はずれ: ダンジョンへ出発</p>
+      <div class="separator"></div>
+      <p class="gold-text" style="font-size:13px;margin-bottom:8px;">■ モンスター仲間</p>
+      <p>・倒したモンスターが仲間になることがある</p>
+      <p>・最大6匹まで（超えたら誰かと別れる）</p>
+      <p>・町に戻るには「CM広告」を視聴</p>
+    </div>
+  </div>
+</div>
+
+<!-- ===== TOWN SCREEN ===== -->
+<div id="town-screen" class="screen">
+  <div class="town-title">★ 街 ★</div>
+  <div id="town-gold" style="font-size:13px;color:var(--gold2);margin-bottom:16px;font-family:var(--font-mono);">所持金: 0G</div>
+  <div id="town-karma" style="font-size:12px;color:var(--purple);margin-bottom:12px;font-family:var(--font-mono);">カルマ: 0</div>
+  <div class="town-grid">
+    <div class="town-card" onclick="openInn()">
+      <div class="town-card-icon">🏨</div>
+      <div class="town-card-name">宿泊所</div>
+      <div class="town-card-desc">レベルアップ・回復</div>
+    </div>
+    <div class="town-card" onclick="openTavern()">
+      <div class="town-card-icon">🍺</div>
+      <div class="town-card-name">酒場</div>
+      <div class="town-card-desc">PTメンバー入れ替え</div>
+    </div>
+    <div class="town-card" onclick="openChurch()">
+      <div class="town-card-icon">⛪</div>
+      <div class="town-card-name">協会</div>
+      <div class="town-card-desc">蘇生・状態回復</div>
+    </div>
+    <div class="town-card" onclick="openShop()">
+      <div class="town-card-icon">🛒</div>
+      <div class="town-card-name">道具屋</div>
+      <div class="town-card-desc">アイテム売買</div>
+    </div>
+    <div class="town-card" onclick="openSmith()" style="border-color:#5a3a1a">
+      <div class="town-card-icon">🔨</div>
+      <div class="town-card-name" style="color:#e8a040">鍛冶屋</div>
+      <div class="town-card-desc">分解・強化・弱体</div>
+    </div>
+    <div class="town-card" onclick="openTraining()">
+      <div class="town-card-icon">⚔️</div>
+      <div class="town-card-name">訓練所</div>
+      <div class="town-card-desc">キャラ作成・転職</div>
+    </div>
+    <div class="town-card" onclick="openOutskirts()">
+      <div class="town-card-icon">🗺️</div>
+      <div class="town-card-name">街はずれ</div>
+      <div class="town-card-desc">ダンジョンへ</div>
+    </div>
+    <div class="town-card" onclick="openEvilTemple()" style="border-color:#5a1a8a">
+      <div class="town-card-icon">🔮</div>
+      <div class="town-card-name" style="color:#c060ff">邪教の館</div>
+      <div class="town-card-desc">モンスター管理・合体</div>
+    </div>
+    <div class="town-card" onclick="openGacha()" style="border-color:#8a6a00">
+      <div class="town-card-icon">🎰</div>
+      <div class="town-card-name" style="color:var(--gold2)">ガチャ</div>
+      <div class="town-card-desc">CMでカルマ獲得</div>
+    </div>
+    <div class="town-card" onclick="openOptions()" style="border-color:#1a3a5a">
+      <div class="town-card-icon">⚙️</div>
+      <div class="town-card-name" style="color:var(--cyan)">オプション</div>
+      <div class="town-card-desc">音量・タイトルへ</div>
+    </div>
+  </div>
+  <button class="menu-btn" style="margin-top:20px;width:200px;" onclick="showScreen('main-screen')">ダンジョンへ戻る</button>
+</div>
+
+<!-- ===== MAIN (DUNGEON) SCREEN ===== -->
+<div id="main-screen" class="screen">
+  <!-- Header：DUNGEON | フロア | 座標 | 所持金 | MAP | 図鑑 | 街へ(CM) -->
+  <div id="header" class="panel">
+    <div class="hdr-title">DUNGEON</div>
+    <div class="hdr-info" id="floor-display">B1F</div>
+    <div class="hdr-info" id="coord-display" style="color:var(--gray);"></div>
+    <div class="hdr-info" id="gold-display">0G</div>
+    <button class="hdr-btn" onclick="showModal('map-modal')">MAP</button>
+    <button class="hdr-btn" onclick="showModal('item-encyclopedia-modal')">図鑑</button>
+    <button class="hdr-btn" onclick="showTown()">街へ(CM)</button>
+  </div>
+
+  <!-- Dungeon Area -->
+  <div id="dungeon-area">
+    <!-- 1st person view -->
+    <div id="dungeon-view">
+      <canvas id="dungeon-canvas" width="560" height="320"></canvas>
+    </div>
+    <!-- ミニマップ + 操作ボタン -->
+    <div id="map-panel" class="panel">
+      <div id="auto-map">
+        <canvas id="map-canvas" width="180" height="180"></canvas>
+      </div>
+      <div id="action-col">
+        <!-- ボタン配置 3×2グリッド:
+             [調べる]  [↑]  [↓]
+             [↺]      [←]  [→]  -->
+        <div id="action-area">
+          <button class="action-btn" onclick="interactCell()">調べる</button>
+          <button class="action-btn dir" onclick="Game.move('forward')" title="W">↑</button>
+          <button class="action-btn dir" onclick="Game.move('backward')" title="S">↓</button>
+          <button class="action-btn dir" onclick="Game.move('turnLeft')" title="A">↺</button>
+          <button class="action-btn dir" onclick="Game.move('strafeLeft')" title="Q">←</button>
+          <button class="action-btn dir" onclick="Game.move('strafeRight')" title="E">→</button>
+        </div>
+        <!-- 向き右・街(CM)・MAP・広告 -->
+        <div id="turn-sub-area">
+          <button class="action-btn dir" onclick="Game.move('turnRight')" title="D">↻</button>
+          <button class="action-btn" onclick="showTown()" style="color:var(--gold)">街(CM)</button>
+          <button class="action-btn" onclick="showModal('map-modal')">MAP</button>
+          <button class="action-btn" onclick="dungeonFullHeal()" style="color:var(--green2);grid-column:1/-1;border-color:var(--green)">📺 広告を見て全回復</button>
+        </div>
+        <div id="dungeon-events" style="font-size:11px;color:var(--yellow);margin-top:4px;min-height:18px;font-family:var(--font-mono);"></div>
+      </div>
+    </div>
+    <!-- パーティ一覧（map-panelの外・独立） -->
+    <div id="party-panel" class="panel">
+      <div class="panel-title">パーティ</div>
+      <div id="party-list"></div>
+    </div>
+  </div>
+
+  <!-- Sidebar -->
+  <div id="sidebar">
+  </div>
+
+  <!-- Log -->
+  <div id="log-area" class="panel">
+    <div class="panel-title">ログ</div>
+    <div id="log-box"></div>
+  </div>
+</div>
+
+<!-- ===== BATTLE SCREEN ===== -->
+<div id="battle-screen" class="screen">
+  <div id="battle-layout">
+    <!-- Enemies -->
+    <div id="battle-enemy-area">
+      <div class="battle-title">◆ ENEMY ◆</div>
+      <div class="enemy-groups" id="enemy-groups-display"></div>
+    </div>
+    <!-- Battle log -->
+    <div id="battle-log"></div>
+    <!-- Party -->
+    <div id="battle-party-area">
+      <div class="battle-title">◆ PARTY ◆</div>
+      <div style="font-size:9px;color:var(--gray);margin-bottom:4px;font-family:var(--font-mono);">前衛 ─────────────────────── 後衛</div>
+      <div class="battle-chars" id="battle-chars-display"></div>
+    </div>
+    <!-- Commands -->
+    <div id="battle-cmd-area">
+      <div class="battle-title" id="battle-cmd-title">コマンド選択</div>
+      <div class="cmd-row" id="battle-cmds">
+        <button class="cmd-btn auto-on" onclick="Battle.toggleAuto()">AUTO</button>
+        <button class="cmd-btn" onclick="Battle.cmdAttack()">攻撃</button>
+        <button class="cmd-btn" onclick="Battle.cmdMagic()">魔法</button>
+        <button class="cmd-btn" onclick="Battle.cmdDefend()">防御</button>
+        <button class="cmd-btn" onclick="Battle.cmdFlee()">逃走</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== MODALS ===== -->
+
+<!-- Map Modal -->
+<div id="map-modal" class="modal-overlay">
+  <div class="modal-box">
+    <div class="modal-title">フロアマップ</div>
+    <button class="modal-close" onclick="hideModal('map-modal')">×</button>
+    <canvas id="full-map-canvas" width="500" height="500" style="display:block;margin:auto;border:1px solid var(--border);"></canvas>
+    <div style="font-size:10px;color:var(--gray);margin-top:6px;text-align:center;font-family:var(--font-mono);">■ 通路 □ 未探索 ★ 現在地 T 罠 S 階段</div>
+  </div>
+</div>
+
+<!-- Character Status Modal -->
+<div id="char-modal" class="modal-overlay">
+  <div class="modal-box">
+    <div class="modal-title" id="char-modal-title">キャラクターステータス</div>
+    <button class="modal-close" onclick="hideModal('char-modal')">×</button>
+    <div id="char-modal-content"></div>
+  </div>
+</div>
+
+<!-- Item Encyclopedia -->
+<div id="item-encyclopedia-modal" class="modal-overlay">
+  <div class="modal-box">
+    <div class="modal-title">アイテム図鑑 / モンスター図鑑</div>
+    <button class="modal-close" onclick="hideModal('item-encyclopedia-modal')">×</button>
+    <div style="display:flex;gap:8px;margin-bottom:10px;">
+      <button class="cmd-btn active" onclick="showEncyTab('item')" id="ency-item-btn">アイテム</button>
+      <button class="cmd-btn" onclick="showEncyTab('monster')" id="ency-monster-btn">モンスター</button>
+    </div>
+    <div id="ency-item-content"></div>
+    <div id="ency-monster-content" style="display:none"></div>
+  </div>
+</div>
+
+<!-- Inn Modal -->
+<div id="inn-modal" class="modal-overlay">
+  <div class="modal-box">
+    <div class="modal-title">🏨 宿泊所</div>
+    <button class="modal-close" onclick="hideModal('inn-modal')">×</button>
+    <div id="inn-content"></div>
+  </div>
+</div>
+
+<!-- Tavern Modal -->
+<div id="tavern-modal" class="modal-overlay">
+  <div class="modal-box">
+    <div class="modal-title">🍺 酒場</div>
+    <button class="modal-close" onclick="hideModal('tavern-modal')">×</button>
+    <div id="tavern-content"></div>
+  </div>
+</div>
+
+<!-- Church Modal -->
+<div id="church-modal" class="modal-overlay">
+  <div class="modal-box">
+    <div class="modal-title">⛪ 協会</div>
+    <button class="modal-close" onclick="hideModal('church-modal')">×</button>
+    <div id="church-content"></div>
+  </div>
+</div>
+
+<!-- Shop Modal -->
+<div id="shop-modal" class="modal-overlay">
+  <div class="modal-box">
+    <div class="modal-title">🛒 道具屋</div>
+    <button class="modal-close" onclick="hideModal('shop-modal')">×</button>
+    <div id="shop-content"></div>
+  </div>
+</div>
+
+<!-- Smith Modal -->
+<div id="smith-modal" class="modal-overlay">
+  <div class="modal-box" style="max-width:560px">
+    <div class="modal-title">🔨 鍛冶屋</div>
+    <button class="modal-close" onclick="hideModal('smith-modal')">×</button>
+    <div id="smith-content"></div>
+  </div>
+</div>
+
+<!-- Training Modal -->
+<div id="training-modal" class="modal-overlay">
+  <div class="modal-box">
+    <div class="modal-title">⚔️ 訓練所</div>
+    <button class="modal-close" onclick="hideModal('training-modal')">×</button>
+    <div id="training-content"></div>
+  </div>
+</div>
+
+<!-- Outskirts Modal -->
+<div id="outskirts-modal" class="modal-overlay">
+  <div class="modal-box" style="max-width:400px">
+    <div class="modal-title">🗺️ 街はずれ</div>
+    <button class="modal-close" onclick="hideModal('outskirts-modal')">×</button>
+    <div id="outskirts-content"></div>
+  </div>
+</div>
+
+<!-- Monster Join Overlay -->
+<div id="monster-join-overlay">
+  <div style="color:var(--green2);font-size:14px;margin-bottom:8px;">⚠ モンスターが仲間に！</div>
+  <div id="monster-join-name" style="font-size:18px;font-weight:bold;margin-bottom:12px;color:var(--yellow)"></div>
+  <div id="monster-join-msg" style="font-size:12px;margin-bottom:12px;"></div>
+  <div id="monster-join-btns" style="display:flex;gap:8px;justify-content:center;"></div>
+</div>
+
+<!-- Companion Select Overlay -->
+<div id="companion-select-overlay">
+  <div class="modal-box" style="max-width:500px">
+    <div class="modal-title">パーティが満員です。誰と別れますか？</div>
+    <div id="companion-select-content"></div>
+  </div>
+</div>
+
+<!-- Character Status Modal（共通：酒場・訓練所・ダンジョンサイドバーから openCharStatusModal() で呼び出す） -->
+<div id="char-status-modal" class="modal-overlay">
+  <div class="modal-box" style="max-width:720px">
+    <div class="modal-title" id="char-status-modal-title">キャラクターステータス</div>
+    <button class="modal-close" onclick="hideModal('char-status-modal')">×</button>
+    <div id="char-status-modal-content"></div>
+  </div>
+</div>
+
+<!-- Evil Temple Modal -->
+<div id="eviltemple-modal" class="modal-overlay">
+  <div class="modal-box" style="max-width:720px">
+    <div class="modal-title">🔮 邪教の館</div>
+    <button class="modal-close" onclick="hideModal('eviltemple-modal')">×</button>
+    <div id="eviltemple-content"></div>
+  </div>
+</div>
+
+<!-- Gacha Modal -->
+<div id="gacha-modal" class="modal-overlay">
+  <div class="modal-box" style="max-width:440px">
+    <div class="modal-title">🎰 カルマガチャ</div>
+    <button class="modal-close" onclick="hideModal('gacha-modal')">×</button>
+    <div id="gacha-content"></div>
+  </div>
+</div>
+
+<!-- Options Modal -->
+<div id="options-modal" class="modal-overlay">
+  <div class="modal-box" style="max-width:440px">
+    <div class="modal-title">⚙️ オプション</div>
+    <button class="modal-close" onclick="hideModal('options-modal')">×</button>
+    <div id="options-content"></div>
+  </div>
+</div>
+
+<!-- CM Overlay -->
+<div id="cm-overlay">
+  <div id="cm-box">
+    <div style="font-size:20px;color:var(--gold2);margin-bottom:8px;">📺 CM広告</div>
+    <div style="font-size:12px;color:var(--gray);margin-bottom:12px;">CM視聴で街に帰れます</div>
+    <div style="font-size:48px;margin-bottom:8px;">🎮</div>
+    <div id="cm-timer">5</div>
+    <div id="cm-bar"><div id="cm-bar-fill" style="width:100%"></div></div>
+    <div style="font-size:11px;color:var(--gray);">しばらくお待ちください...</div>
+  </div>
+</div>
+
+<script src="gamedata.js"></script>
+<script src="gamestate.js"></script>
+<script src="system_char.js"></script>
+<script src="system_dungeon.js"></script>
+<script src="system_ui.js"></script>
+<script src="system_town_common.js"></script>
+<script src="system_town_inn.js"></script>
+<script src="system_town_tavern.js"></script>
+<script src="system_town_church.js"></script>
+<script src="system_town_shop.js"></script>
+<script src="system_town_smith.js"></script>
+<script src="system_town_training.js"></script>
+<script src="system_town_outskirts.js"></script>
+<script src="system_town_temple.js"></script>
+<script src="system_town_gacha.js"></script>
+<script src="system_town_options.js"></script>
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js')
+      .then(reg => console.log('SW registered!', reg))
+      .catch(err => console.err('SW registry failed!', err));
+  });
+}
+</script>
+</body>
+</html>

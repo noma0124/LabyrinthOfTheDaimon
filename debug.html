@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<style>
+body { background: #111; color: #0f0; font-family: monospace; padding: 20px; }
+.ok { color: #0f0; }
+.err { color: #f44; font-weight: bold; }
+</style>
+</head>
+<body>
+<h2>🔍 読み込みデバッグ</h2>
+<div id="log"></div>
+<script>
+function log(msg, ok) {
+  const d = document.createElement('div');
+  d.className = ok ? 'ok' : 'err';
+  d.textContent = msg;
+  document.getElementById('log').appendChild(d);
+}
+window.onerror = function(msg, src, line, col) {
+  log('❌ エラー: ' + msg + ' [' + (src||'').split('/').pop() + ':' + line + ']', false);
+};
+</script>
+<script src="gamedata.js" onload="log('✓ gamedata.js 読み込み成功', true)" onerror="log('❌ gamedata.js 読み込み失敗', false)"></script>
+<script src="gamestate.js" onload="log('✓ gamestate.js 読み込み成功', true)" onerror="log('❌ gamestate.js 読み込み失敗', false)"></script>
+<script src="system_char.js" onload="log('✓ system_char.js 読み込み成功', true)" onerror="log('❌ system_char.js 読み込み失敗', false)"></script>
+<script src="system_dungeon.js" onload="log('✓ system_dungeon.js 読み込み成功', true)" onerror="log('❌ system_dungeon.js 読み込み失敗', false)"></script>
+<script src="system_ui.js" onload="log('✓ system_ui.js 読み込み成功', true)" onerror="log('❌ system_ui.js 読み込み失敗', false)"></script>
+<script src="system_town.js" onload="log('✓ system_town.js 読み込み成功', true)" onerror="log('❌ system_town.js 読み込み失敗', false)"></script>
+<script>
+window.addEventListener('load', function() {
+  try {
+    log('--- load イベント発火 ---', true);
+    log('DATA: ' + (typeof DATA !== 'undefined' ? '✓' : '❌未定義'), typeof DATA !== 'undefined');
+    log('GS: ' + (typeof GS !== 'undefined' ? '✓' : '❌未定義'), typeof GS !== 'undefined');
+    log('Game: ' + (typeof Game !== 'undefined' ? '✓' : '❌未定義'), typeof Game !== 'undefined');
+    log('Battle: ' + (typeof Battle !== 'undefined' ? '✓' : '❌未定義'), typeof Battle !== 'undefined');
+    log('showScreen: ' + (typeof showScreen !== 'undefined' ? '✓' : '❌未定義'), typeof showScreen !== 'undefined');
+    log('showTown: ' + (typeof showTown !== 'undefined' ? '✓' : '❌未定義'), typeof showTown !== 'undefined');
+  } catch(e) {
+    log('❌ load時エラー: ' + e.message, false);
+  }
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,227 @@
+/* =============================================
+   道具屋ショップ UI スタイル
+   既存の CSSファイルに追記してください
+   ============================================= */
+
+/* --- モード選択画面 --- */
+.shop-mode-select {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 8px;
+}
+
+.shop-gold-display {
+  font-size: 14px;
+  color: var(--white);
+  text-align: center;
+}
+
+.shop-mode-btns {
+  display: flex;
+  gap: 12px;
+  width: 100%;
+  justify-content: center;
+}
+
+.shop-mode-btn {
+  flex: 1;
+  max-width: 140px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 16px 8px;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  color: var(--white);
+  cursor: pointer;
+  font-family: var(--font-jp);
+  font-size: 14px;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.shop-mode-btn:hover,
+.shop-mode-btn:active {
+  border-color: var(--gold);
+  background: var(--bg2);
+}
+
+.shop-mode-icon {
+  font-size: 28px;
+  line-height: 1;
+}
+
+.shop-mode-label {
+  font-size: 13px;
+  color: var(--gold2);
+}
+
+/* --- 購入/売却共通ヘッダー --- */
+.shop-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+
+.shop-back-btn {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  color: var(--cyan);
+  font-family: var(--font-jp);
+  font-size: 11px;
+  padding: 4px 8px;
+  cursor: pointer;
+  white-space: nowrap;
+  min-height: 28px;
+}
+
+.shop-back-btn:hover {
+  border-color: var(--cyan);
+}
+
+.shop-header-title {
+  font-size: 13px;
+  color: var(--gold);
+  font-weight: bold;
+  flex: 1;
+}
+
+.shop-header-gold {
+  font-size: 11px;
+  color: var(--white);
+  white-space: nowrap;
+}
+
+/* --- アイテム一覧 --- */
+.shop-item-list {
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.shop-item-row {
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.shop-item-row:hover {
+  background: var(--bg2);
+}
+
+.shop-item-selected {
+  border-color: var(--gold) !important;
+  background: var(--bg2) !important;
+}
+
+/* --- 購入アクション --- */
+.shop-buy-action {
+  margin-top: 8px;
+  padding: 8px;
+  background: var(--bg3);
+  border: 1px solid var(--border2);
+}
+
+.shop-buy-desc {
+  font-size: 11px;
+  color: var(--gray);
+  margin-bottom: 6px;
+  line-height: 1.4;
+}
+
+.shop-buy-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.shop-buy-row .cmd-btn {
+  white-space: nowrap;
+}
+
+/* --- 共通セレクト --- */
+.shop-select {
+  flex: 1;
+  min-width: 0;
+  background: var(--bg3);
+  color: var(--white);
+  border: 1px solid var(--border);
+  padding: 6px;
+  font-family: var(--font-jp);
+  font-size: 12px;
+  /* スマホでの最小タップターゲット */
+  min-height: 36px;
+}
+
+/* --- 売却画面 --- */
+.shop-sell-char-select {
+  width: 100%;
+  margin-bottom: 6px;
+  display: block;
+}
+
+.shop-sell-all-btn {
+  width: 100%;
+  margin-bottom: 6px;
+  padding: 6px;
+  display: block;
+  text-align: center;
+}
+
+.shop-sell-btn {
+  font-size: 11px;
+  padding: 4px 10px;
+  background: var(--bg3);
+  border: 1px solid var(--gold);
+  color: var(--gold2);
+  cursor: pointer;
+  /* スマホタップしやすいサイズ */
+  min-height: 32px;
+  min-width: 44px;
+  white-space: nowrap;
+}
+
+/* --- スマートフォン対応 --- */
+@media (max-width: 480px) {
+  .shop-mode-btns {
+    gap: 8px;
+  }
+
+  .shop-mode-btn {
+    padding: 14px 6px;
+    font-size: 12px;
+  }
+
+  .shop-mode-icon {
+    font-size: 24px;
+  }
+
+  .shop-item-list {
+    max-height: 180px;
+  }
+
+  .shop-buy-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .shop-buy-row .shop-select {
+    width: 100%;
+  }
+
+  .shop-buy-row .cmd-btn {
+    width: 100%;
+    text-align: center;
+  }
+
+  .shop-header {
+    gap: 4px;
+  }
+
+  .shop-header-gold {
+    font-size: 10px;
+  }
+}
