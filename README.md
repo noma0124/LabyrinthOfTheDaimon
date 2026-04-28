@@ -1,0 +1,2 @@
+# LabyrinthOfTheDaimon
+ウィザードリィや女神転生好きな人へ
