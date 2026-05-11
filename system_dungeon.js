@@ -281,32 +281,58 @@ function renderMap() {
   const canvas = document.getElementById('map-canvas');
   if(!canvas) return;
   const ctx = canvas.getContext('2d');
+  // canvas の実サイズをCSS表示サイズに合わせる（1:1正方形）
+  const rect = canvas.getBoundingClientRect();
+  const w = Math.round(rect.width || canvas.offsetWidth || 400);
+  const h = Math.round(w / 2); // 20:10 = 2:1
+  if(canvas.width !== w || canvas.height !== h) {
+    canvas.width  = w;
+    canvas.height = h;
+  }
   const W = canvas.width, H = canvas.height;
-  const cellW = W/DUNGEON_SIZE, cellH = H/DUNGEON_SIZE;
-  ctx.clearRect(0,0,W,H);
+
+  // 表示範囲：横20セル × 縦10セル（プレイヤー中心）
+  const VIEW_COLS = 20, VIEW_ROWS = 10;
+  const cellW = W / VIEW_COLS;
+  const cellH = H / VIEW_ROWS;
+
+  const {x: px, y: py} = GS.playerPos;
+  // 表示開始セル（プレイヤーを中心に）
+  let startX = Math.round(px - VIEW_COLS / 2);
+  let startY = Math.round(py - VIEW_ROWS / 2);
+  // マップ境界クリップ
+  startX = Math.max(0, Math.min(startX, DUNGEON_SIZE - VIEW_COLS));
+  startY = Math.max(0, Math.min(startY, DUNGEON_SIZE - VIEW_ROWS));
+
+  ctx.clearRect(0, 0, W, H);
   ctx.fillStyle = '#000';
-  ctx.fillRect(0,0,W,H);
+  ctx.fillRect(0, 0, W, H);
 
   for(const [key, val] of Object.entries(GS.autoMap)) {
-    const [mx,my] = key.split(',').map(Number);
-    const rx = mx*cellW, ry = my*cellH;
-    if(val===1) { ctx.fillStyle='#111'; ctx.fillRect(rx,ry,cellW,cellH); }
-    else if(val===0) { ctx.fillStyle='#224'; ctx.fillRect(rx,ry,cellW,cellH); }
-    else if(val===2) { ctx.fillStyle='#422'; ctx.fillRect(rx,ry,cellW,cellH); } // trap
-    else if(val===3) { ctx.fillStyle='#242'; ctx.fillRect(rx,ry,cellW,cellH); } // stairs
-    else if(val===4) { ctx.fillStyle='#442'; ctx.fillRect(rx,ry,cellW,cellH); } // chest
+    const [mx, my] = key.split(',').map(Number);
+    const rx = (mx - startX) * cellW;
+    const ry = (my - startY) * cellH;
+    // 表示範囲外はスキップ
+    if(rx < -cellW || rx > W || ry < -cellH || ry > H) continue;
+    if(val === 1)      ctx.fillStyle = '#111';
+    else if(val === 0) ctx.fillStyle = '#224';
+    else if(val === 2) ctx.fillStyle = '#422'; // trap
+    else if(val === 3) ctx.fillStyle = '#242'; // stairs
+    else if(val === 4) ctx.fillStyle = '#442'; // chest
+    ctx.fillRect(rx, ry, cellW, cellH);
   }
 
   // Player
-  const {x,y} = GS.playerPos;
-  ctx.fillStyle='#c8a020';
-  ctx.fillRect(x*cellW+2, y*cellH+2, cellW-4, cellH-4);
+  const drawX = (px - startX) * cellW;
+  const drawY = (py - startY) * cellH;
+  ctx.fillStyle = '#c8a020';
+  ctx.fillRect(drawX + 2, drawY + 2, cellW - 4, cellH - 4);
   // Direction indicator
-  const dirX = [0,1,0,-1][GS.playerDir]*cellW*0.4;
-  const dirY = [-1,0,1,0][GS.playerDir]*cellH*0.4;
-  ctx.fillStyle='#fff';
+  const dirX = [0, 1, 0, -1][GS.playerDir] * cellW * 0.4;
+  const dirY = [-1, 0, 1, 0][GS.playerDir] * cellH * 0.4;
+  ctx.fillStyle = '#fff';
   ctx.beginPath();
-  ctx.arc(x*cellW+cellW/2+dirX, y*cellH+cellH/2+dirY, 2, 0, Math.PI*2);
+  ctx.arc(drawX + cellW / 2 + dirX, drawY + cellH / 2 + dirY, 2, 0, Math.PI * 2);
   ctx.fill();
 }
 
@@ -341,6 +367,21 @@ function renderFullMap() {
   ctx.fillStyle='#fff';
   ctx.font='bold 14px monospace';
   ctx.fillText('★', x*cellW+cellW/2-7, y*cellH+cellH/2+5);
+}
+
+// ==================== パーティ/ロースター整合性クリーンアップ ====================
+/**
+ * ダンジョン終了・町帰還時に呼ぶ。
+ * GS.party にいるキャラ（inParty===true）が GS.roster にも残っている場合、
+ * roster 側の重複エントリを除去してキャラが増殖するバグを防ぐ。
+ * また GS.party 全員の inParty フラグを true に揃える。
+ */
+function cleanupRosterDuplicates() {
+  const partyIds = new Set(GS.party.map(c => String(c.id)));
+  // roster から party と重複しているエントリを除去
+  GS.roster = GS.roster.filter(r => !partyIds.has(String(r.id)));
+  // party の全員に inParty=true を保証（途中加入で未セットの場合対策）
+  GS.party.forEach(c => { c.inParty = true; });
 }
 
 // ==================== MOVEMENT ====================
@@ -444,7 +485,7 @@ function handleTrap() {
 
 function handleStairs() {
   const evEl=document.getElementById('dungeon-events');
-  evEl.innerHTML='<button class="action-btn" onclick="goDeeper()">▼ 下の階へ進む</button> <button class="action-btn" onclick="goUp()">▲ 前の階へ戻る</button>';
+  evEl.innerHTML='<div style="display:flex;gap:4px;"><button class="action-btn stairs-btn" onclick="goDeeper()">▼ 下の階へ</button><button class="action-btn stairs-btn" onclick="goUp()">▲ 上の階へ</button></div>';
 }
 
 /**
@@ -475,6 +516,8 @@ function goUp() {
   if(GS.floor<=1) {
     // B1Fの階段で戻るを選択 → 町へ帰還（CM広告なし）
     log('ダンジョンを出て町へ戻った。','event');
+    // party → roster の重複を解消
+    cleanupRosterDuplicates();
     showTown('stairs');
     return;
   }
@@ -577,7 +620,7 @@ const Battle = {
       const dead=!c.isAlive||c.status.includes('dead')||c.status.includes('stone');
       const acting=GS.battleState?.selectedChar===c.id;
       const defending=GS.battleState?.pendingActions?.find(a=>a.charId===c.id&&a.action==='defend');
-      el.innerHTML+=`<div class="battle-char ${dead?'dead':''} ${acting?'acting':''} ${defending?'defending':''}" onclick="Battle.selectChar(${i})">
+      el.innerHTML+=`<div class="battle-char ${dead?'dead':''} ${acting?'acting':''} ${defending?'defending':''} ${c.isMonster?'monster-member':''}" onclick="Battle.selectChar(${i})">
         <div class="bc-name">${c.name}</div>
         <div class="bc-class">${getJob(c.job)?.name||''} Lv${c.level}</div>
         <div class="bc-hp" style="color:${hpColor(c.hp,c.maxHp)}">${c.hp}/${c.maxHp}</div>
@@ -1059,7 +1102,7 @@ const Battle = {
     const joinable=[];
     GS.battleState.enemies.forEach(grp=>{
       grp.monsters.forEach(m=>{
-        if(m.joinable&&m.joinRate>0&&Math.random()*100<m.joinRate*0.5) joinable.push(m);
+        if(m.joinable&&m.joinRate>0&&Math.random()*100<m.joinRate) joinable.push(m);
       });
     });
 
@@ -1078,6 +1121,9 @@ const Battle = {
     setTimeout(()=>{
       this.endBattle(false);
       GS.party.forEach(c=>{ c.hp=1; c.isAlive=true; c.status=c.status.filter(s=>s==='stone'); });
+      // party → roster の重複を解消してからキャラのフラグをリセット
+      cleanupRosterDuplicates();
+      GS.party.forEach(c=>{ c.inParty = false; });
       showTown();
     },1500);
   },
@@ -1122,6 +1168,7 @@ const Battle = {
     if(GS.party.length>=6) {
       this.showCompanionSelect(monChar);
     } else {
+      monChar.inParty = true; // 外出フラグ
       GS.party.push(monChar);
       log(`${md.name}が仲間になった！`,'monster');
       updatePartyDisplay();
@@ -1169,13 +1216,18 @@ const Battle = {
     const removed=GS.party[idx];
     const newChar=window._pendingMonster;
     if(!newChar) return;
+    newChar.inParty = true;  // 新規加入モンスターに外出フラグ
     GS.party.splice(idx,1,newChar);
+    // 外れたメンバーのフラグをリセット
+    removed.inParty = false;
     // 外れたメンバーがモンスターなら邪教の館へ送る
     if(removed.isMonster) {
       if(!GS.monsters) GS.monsters=[];
       GS.monsters.push(removed);
       log(`${removed.name}は邪教の館へ向かった。${newChar.name}が仲間になった！`,'monster');
     } else {
+      // 人間キャラは roster に戻す（重複しないように確認）
+      if(!GS.roster.find(r=>r.id===removed.id)) GS.roster.push(removed);
       log(`${removed.name}と別れ、${newChar.name}が仲間になった！`,'monster');
     }
     overlay.classList.remove('active');

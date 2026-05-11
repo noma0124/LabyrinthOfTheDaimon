@@ -39,6 +39,26 @@ function showTown(source) {
   showCM(returnToTown);
 }
 
+/**
+ * 町からダンジョンへ戻る（「ダンジョン攻略を再開」ボタン）
+ * GS.dungeon が存在する場合は前回フロアに復帰、なければB1Fから開始
+ */
+function returnToDungeon() {
+  if(!GS.dungeon) {
+    GS.floor = 1;
+    initDungeon();
+  } else {
+    GS.floor = GS.returnFloor || GS.floor || 1;
+  }
+  showScreen('main-screen');
+  document.getElementById('floor-display').textContent = `B${GS.floor}F`;
+  if(typeof updateQuickInfo === 'function') updateQuickInfo();
+  if(typeof updatePartyDisplay === 'function') updatePartyDisplay();
+  if(typeof renderDungeon === 'function') renderDungeon();
+  if(typeof renderMap === 'function') renderMap();
+  log(`B${GS.floor}Fのダンジョンに戻った。`, 'event');
+}
+
 function renderTownGold() {
   const el=document.getElementById('town-gold');
   if(el) el.textContent=`所持金: ${GS.gold}G`;

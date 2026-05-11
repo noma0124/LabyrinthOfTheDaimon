@@ -9,6 +9,46 @@ if(typeof GS.karma === 'undefined') GS.karma = 0;
 // GS.monsters : 捕獲・合体で作られたモンスターインスタンスの配列
 if(!GS.monsters) GS.monsters = [];
 
+// ---- ソート状態管理 ----
+const _templeSort = {
+  list:    { key: 'rank', asc: true },
+  fusion:  { key: 'rank', asc: true },
+  release: { key: 'rank', asc: true },
+};
+function _sortMonsters(arr, key, asc) {
+  return arr.slice().sort(function(a, b) {
+    var va, vb;
+    if (key === 'rank')  { va = a.rank||1;  vb = b.rank||1; }
+    else if (key === 'level') { va = a.level||Math.max(1,a.floor||1); vb = b.level||Math.max(1,b.floor||1); }
+    else if (key === 'hp')   { va = a.hp||0; vb = b.hp||0; }
+    else if (key === 'atk')  { va = a.atk||0; vb = b.atk||0; }
+    else if (key === 'karma') {
+      va = Math.round((a.rank||1)*(a.level||Math.max(1,a.floor||1))*0.5)+1;
+      vb = Math.round((b.rank||1)*(b.level||Math.max(1,b.floor||1))*0.5)+1;
+    } else if (key === 'name') {
+      return asc ? (a.name||'').localeCompare(b.name||'','ja') : (b.name||'').localeCompare(a.name||'','ja');
+    } else { va = 0; vb = 0; }
+    return asc ? va - vb : vb - va;
+  });
+}
+function _doSort(tab, key) {
+  var s = _templeSort[tab];
+  if (s.key === key) { s.asc = !s.asc; } else { s.key = key; s.asc = true; }
+  renderEvilTempleContent(tab);
+}
+function _mkTh(tab, key, label, extraStyle) {
+  var s = _templeSort[tab];
+  var active = s.key === key;
+  var arrow  = active ? (s.asc ? '▲' : '▼') : '⇅';
+  var col    = active ? 'var(--gold)' : 'var(--gray)';
+  var st = 'padding:3px 4px;background:var(--bg2);border-bottom:1px solid var(--border2);'
+         + 'font-size:9px;white-space:nowrap;cursor:pointer;user-select:none;text-align:left;'
+         + (extraStyle||'');
+  return '<th style="' + st + '" onclick="_doSort(\'' + tab + '\',\'' + key + '\')">'
+       + label + '<span style="color:' + col + '">' + arrow + '</span></th>';
+}
+
+
 // ---- ランクバッジHTML（UI表現。ランク計算はgamedata.jsのgetMonsterRank()を使用）----
 function rankBadgeHtml(rankValue) {
   const r = getMonsterRank(rankValue); // gamedata.js のグローバル関数
@@ -122,11 +162,11 @@ function renderEvilTempleList() {
         <span class="item-name" style="font-size:${sp?13:11}px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${c.name}</span>
         ${jobInfo ? `<span class="item-type" style="color:${jobInfo.color||'white'};font-size:${sp?11:10}px;flex-shrink:0">${jobInfo.name}</span>` : ''}
         <span class="item-val" style="font-size:${sp?11:10}px;flex-shrink:0;min-width:${sp?28:24}px;text-align:right">Lv${c.level}</span>
-        ${isFromTemple ? `
+        ${isFromTemple && !c._isHumanChar ? `
         <button class="mini-btn drop-btn"
                 onclick="templeRemoveFromParty(${i})"
                 style="flex-shrink:0;${sp?'min-width:44px;min-height:36px;font-size:13px;padding:4px 8px;':''}">外す</button>
-        ` : `<span style="font-size:${sp?10:9}px;color:var(--gray);flex-shrink:0;padding:0 4px">冒険者</span>`}
+        ` : `<span style="font-size:${sp?10:9}px;color:var(--gray);flex-shrink:0;padding:0 4px">${isFromTemple ? '人間' : '冒険者'}</span>`}
       </div>`;
   });
 
@@ -147,38 +187,41 @@ function renderEvilTempleList() {
       </div>
       <div class="item-list">`;
 
-  benchMonsters.forEach((m, _bi) => {
-    const mi = allMonsters.indexOf(m);
-    const rankBadge = rankBadgeHtml(m.rank||1);
-    const canAdd = GS.party.length < 6;
-
-    html += `
-      <div class="item-row" style="
-        cursor:pointer;
-        padding:${sp?'7px 6px':'3px 5px'};
-        min-height:${sp?44:32}px;
-        margin-bottom:${sp?5:3}px;
-        align-items:center;
-        display:flex;gap:${sp?6:4}px;
-      " onclick="showMonsterDetail(${mi})">
-        <span style="font-size:${sp?22:18}px;flex-shrink:0;line-height:1">${m.img||'👾'}</span>
-        <span class="item-name" style="font-size:${sp?13:11}px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${m.name}</span>
-        ${rankBadge}
-        <span class="item-type" style="color:var(--cyan);font-size:${sp?11:10}px;flex-shrink:0">HP:${m.hp}</span>
-        <span class="item-val" style="font-size:${sp?11:10}px;flex-shrink:0">ATK:${m.atk}</span>
-        <button class="mini-btn use-btn"
-                onclick="event.stopPropagation();templeAddToParty('${m.id}')"
-                style="flex-shrink:0;${sp?'min-width:52px;min-height:36px;font-size:13px;padding:4px 8px;':''}"
-                ${!canAdd?'disabled title="パーティが満員"':''}>加える</button>
-      </div>`;
-  });
-
-  if (!benchMonsters.length) {
-    html += `<p style="color:var(--gray);font-size:${sp?12:11}px;padding:6px">館に残っているモンスターなし</p>`;
+  var ls = _templeSort.list;
+  var sortedBench = _sortMonsters(benchMonsters, ls.key, ls.asc);
+  var thS = 'padding:3px 2px;background:var(--bg2);border-bottom:1px solid var(--border2);font-size:9px;white-space:nowrap;text-align:left';
+  var tdS = 'padding:2px 3px;border-bottom:1px solid var(--border);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:middle;font-size:10px';
+  html += '<table style="width:100%;border-collapse:collapse;table-layout:fixed">'
+    + '<colgroup><col style="width:22px"><col style="width:32px"><col style="width:22px"><col style="width:auto"><col style="width:30px"><col style="width:30px"><col style="width:38px"></colgroup>'
+    + '<thead><tr>'
+    + '<th style="' + thS + '"></th>'
+    + _mkTh('list','rank','ランク')
+    + _mkTh('list','level','Lv')
+    + _mkTh('list','name','名前')
+    + _mkTh('list','hp','HP')
+    + _mkTh('list','atk','ATK')
+    + '<th style="' + thS + '"></th>'
+    + '</tr></thead><tbody>';
+  if (!sortedBench.length) {
+    html += '<tr><td colspan="7" style="color:var(--gray);font-size:11px;padding:6px">館に残っているモンスターなし</td></tr>';
   }
-
-  html += `</div></div></div>`;
-  html += `<p style="font-size:10px;color:var(--gray);margin-top:6px">捕獲数: ${allMonsters.length}体</p>`;
+  sortedBench.forEach(function(m) {
+    var mi = allMonsters.indexOf(m);
+    var rb = rankBadgeHtml(m.rank||1);
+    var mLv = m.level||Math.max(1,m.floor||1);
+    var canAdd = GS.party.length < 6;
+    html += '<tr onclick="showMonsterDetail(' + mi + ')" style="cursor:pointer" onmouseover="this.style.background=\'var(--bg3)\'" onmouseout="this.style.background=\'\'">'
+      + '<td style="' + tdS + ';text-align:center;font-size:14px">' + (m.img||'👾') + '</td>'
+      + '<td style="' + tdS + '">' + rb + '</td>'
+      + '<td style="' + tdS + ';color:var(--yellow)">' + mLv + '</td>'
+      + '<td style="' + tdS + '">' + m.name + '</td>'
+      + '<td style="' + tdS + ';color:var(--cyan)">' + m.hp + '</td>'
+      + '<td style="' + tdS + '">' + m.atk + '</td>'
+      + '<td style="' + tdS + ';text-align:center"><button class="mini-btn use-btn" style="font-size:10px;padding:1px 4px" onclick="event.stopPropagation();templeAddToParty(\'' + m.id + '\')" ' + (!canAdd?'disabled':'') + '>加える</button></td>'
+      + '</tr>';
+  });
+  html += '</tbody></table></div></div></div>';
+  html += '<p style="font-size:10px;color:var(--gray);margin-top:4px">捕獲数: ' + allMonsters.length + '体</p>';
   return html;
 }
 
@@ -193,8 +236,10 @@ function templeAddToParty(monsterId) {
   // 元キャラ参照がある場合はそのまま復帰（ステータス変更なし）
   if (m._charRef) {
     const c = m._charRef;
-    c._fromTemple = true;   // パーティ内で邪教館出身と識別
-    c._templeId   = m.id;   // 対応するモンスターエントリのID
+    c._fromTemple    = true;        // パーティ内で邪教館出身と識別
+    c._templeId      = m.id;        // 対応するモンスターエントリのID
+    c._isHumanChar   = !!m._isHumanChar; // 人間キャラフラグを引き継ぎ
+    c.inParty        = true;        // 外出フラグ
     GS.party.push(c);
     log(`${c.name} が邪教の館からパーティに加わった`, 'event');
   } else {
@@ -214,7 +259,9 @@ function templeAddToParty(monsterId) {
       str: m.atk, agi: 10, intel: 5, pie: 5, vit: m.def, luk: 5,
       status: [],
       inventory: [],
-      equipment: m.equipment || {}
+      equipment: m.equipment || {},
+      isMonster:   true,
+      inParty:     true   // 外出フラグ
     };
     GS.party.push(pseudo);
     log(`${m.name} がパーティに加わった`, 'event');
@@ -232,30 +279,32 @@ function templeRemoveFromParty(idx) {
   // _templeId で館のエントリを探し、_fromTemple フラグをリセット
   if (c._fromTemple) {
     c._fromTemple = false;
+    c.inParty     = false; // 外出フラグリセット
     // 対応するモンスターエントリが消えていれば再登録
     if (!GS.monsters) GS.monsters = [];
     const exists = GS.monsters.some(m => String(m.id) === String(c._templeId));
     if (!exists && c._templeId) {
       // _charRef を持つキャラの場合は再登録
       GS.monsters.push({
-        id:       c._templeId || ('char_' + c.id),
-        _charId:  c.id,
-        _charRef: c,
-        name:     c.name,
-        img:      c.portrait || '🧑‍🦯',
-        floor:    GS.floor || 1,
-        rank:     Math.max(1, Math.floor((c.level||1)/3)+1),
-        hp:       c.hp,
-        atk:      c.str || 10,
-        def:      c.vit || 5,
-        exp:      (c.level||1)*10,
-        gold:     0,
-        abilities:[],
-        group:    '人',
-        joinRate: 0,
-        joinable: true,
-        equipment:{},
-        drops:    []
+        id:           c._templeId || ('char_' + c.id),
+        _charId:      c.id,
+        _charRef:     c,
+        _isHumanChar: !!c._isHumanChar,
+        name:         c.name,
+        img:          c.portrait || '🧑‍🦯',
+        floor:        GS.floor || 1,
+        rank:         Math.max(1, Math.floor((c.level||1)/3)+1),
+        hp:           c.hp,
+        atk:          c.str || 10,
+        def:          c.vit || 5,
+        exp:          (c.level||1)*10,
+        gold:         0,
+        abilities:    [],
+        group:        '人',
+        joinRate:     0,
+        joinable:     true,
+        equipment:    {},
+        drops:        []
       });
     }
     log(`${c.name} が邪教の館に戻った`, 'event');
@@ -398,57 +447,157 @@ function equipMonsterItem(monsterIdx, slot, iid, ownerId, _ei) {
 // ---- 合体 ----
 function renderEvilTempleFusion() {
   const karmaCost = 100;
-  if(GS.monsters.length < 2) {
-    return `<p style="color:var(--gray);font-size:12px;padding:8px">合体には2体以上のモンスターが必要です。</p>`;
+
+  // 合体可能なモンスターのみ（パーティ中のものは除外）
+  const inPartyTempleIds = new Set(
+    GS.party.filter(c => c._fromTemple).map(c => String(c._templeId))
+  );
+  const fusible = (GS.monsters || []).filter(m => !inPartyTempleIds.has(String(m.id)));
+
+  if(fusible.length < 2) {
+    return `<p style="color:var(--gray);font-size:12px;padding:8px">合体には館にいる2体以上のモンスターが必要です。</p>`;
   }
+
+  const canFuse = GS.karma >= karmaCost;
+
   let html = `
     <div style="background:var(--bg3);border:1px solid var(--purple);padding:8px;margin-bottom:10px;font-size:11px">
       <div style="color:var(--gold2);margin-bottom:4px">🔮 モンスター合体</div>
       <div>カルマを消費して2体のモンスターを合体させます。</div>
-      <div style="color:var(--gray);margin-top:2px">・消費カルマ: <span style="color:var(--cyan)">${karmaCost}</span> / 現在: <span id="karma-disp-fusion" style="color:var(--gold)">${GS.karma}</span></div>
+      <div style="color:var(--gray);margin-top:2px">・消費カルマ: <span style="color:var(--cyan)">${karmaCost}</span> / 現在: <span id="karma-disp-fusion" style="color:${canFuse?'var(--gold)':'var(--red2)'}">${GS.karma}</span></div>
       <div style="color:var(--gray)">・ランク: 素材の平均 ±5ランダム</div>
       <div style="color:var(--gray)">・能力値: 平均 ±5ランダム</div>
       <div style="color:var(--gray)">・スキル: 素材スキルからランダム引き継ぎ</div>
+      <div style="color:var(--orange);margin-top:4px;font-size:10px">※ 素材モンスターの装備は倉庫に送られます</div>
     </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
-      <div>
-        <div class="stat-title" style="font-size:10px">素材A</div>
-        <select id="fusion-a" style="width:100%;background:var(--bg3);color:var(--white);border:1px solid var(--border);padding:4px;font-family:var(--font-jp);font-size:11px">
-          ${GS.monsters.map((m,i)=>`<option value="${i}">${m.img||'👾'} ${m.name} (${m.floor||1}F)</option>`).join('')}
-        </select>
-      </div>
-      <div>
-        <div class="stat-title" style="font-size:10px">素材B</div>
-        <select id="fusion-b" style="width:100%;background:var(--bg3);color:var(--white);border:1px solid var(--border);padding:4px;font-family:var(--font-jp);font-size:11px">
-          ${GS.monsters.map((m,i)=>`<option value="${i}" ${i===1?'selected':''}>${m.img||'👾'} ${m.name} (${m.floor||1}F)</option>`).join('')}
-        </select>
-      </div>
-    </div>
-    <button class="cmd-btn" style="background:linear-gradient(135deg,var(--purple),#6a0dad);border-color:var(--purple);width:100%" onclick="doFusion()">🔮 合体実行 (-${karmaCost}カルマ)</button>
+    ${(function(){
+      var fs = _templeSort.fusion;
+      var sorted = _sortMonsters(fusible, fs.key, fs.asc);
+      function mkThF(key, label) { return _mkTh('fusion', key, label); }
+      function makeRows(selId) {
+        return sorted.map(function(m) {
+          var idx = fusible.indexOf(m);
+          var mLv = m.level||Math.max(1,m.floor||1);
+          var rb  = rankBadgeHtml(m.rank||1);
+          var tds = 'padding:2px 3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10px;vertical-align:middle';
+          return '<tr data-idx="' + idx + '" onclick="_fusionSelectRow(this,\'' + selId + '\')" style="cursor:pointer"'
+            + ' onmouseover="if(!this.dataset.chosen)this.style.background=\'var(--border)\'"'
+            + ' onmouseout="if(!this.dataset.chosen)this.style.background=\'\'">'
+            + '<td style="' + tds + ';font-size:9px">' + rb + '</td>'
+            + '<td style="' + tds + ';font-size:9px;color:var(--yellow)">' + mLv + '</td>'
+            + '<td style="' + tds + '">' + (m.img||'👾') + m.name + '</td>'
+            + '</tr>';
+        }).join('');
+      }
+      function makeTbl(selId) {
+        return '<table style="width:100%;border-collapse:collapse;table-layout:fixed">'
+          + '<colgroup><col style="width:34px"><col style="width:24px"><col style="width:auto"></colgroup>'
+          + '<thead><tr>' + mkThF('rank','ランク') + mkThF('level','Lv') + mkThF('name','名前') + '</tr></thead>'
+          + '<tbody>' + makeRows(selId) + '</tbody></table>';
+      }
+      return '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">'
+        + '<div><div class="stat-title" style="font-size:10px;margin-bottom:2px">素材A</div>'
+        + '<div id="fusion-a-box" style="height:160px;overflow-y:auto;border:1px solid var(--border);background:var(--bg3)">' + makeTbl('a') + '</div>'
+        + '<input type="hidden" id="fusion-a" value="0"></div>'
+        + '<div><div class="stat-title" style="font-size:10px;margin-bottom:2px">素材B</div>'
+        + '<div id="fusion-b-box" style="height:160px;overflow-y:auto;border:1px solid var(--border);background:var(--bg3)">' + makeTbl('b') + '</div>'
+        + '<input type="hidden" id="fusion-b" value="1"></div></div>';
+    })()}
+    <button id="fusion-exec-btn" class="cmd-btn"
+      style="background:linear-gradient(135deg,var(--purple),#6a0dad);border-color:var(--purple);width:100%;${!canFuse?'opacity:0.4;cursor:not-allowed;':''}"
+      onclick="doFusion()"
+      ${!canFuse?'disabled title="カルマが足りません"':''}>
+      🔮 合体実行 (-${karmaCost}カルマ)
+    </button>
+    ${!canFuse ? `<div style="color:var(--red2);font-size:11px;margin-top:4px;text-align:center">カルマが足りません（必要: ${karmaCost} / 現在: ${GS.karma}）</div>` : ''}
     <div id="fusion-result" style="margin-top:10px"></div>
   `;
   return html;
 }
 
+/** 素材A・Bが同じになったとき合体ボタンを非活性にする */
+function _fusionValidateSelects() {
+  var selA = document.getElementById('fusion-a');
+  var selB = document.getElementById('fusion-b');
+  var btn  = document.getElementById('fusion-exec-btn');
+  if (!selA || !selB || !btn) return;
+  var same = selA.value === selB.value || selA.value === '' || selB.value === '';
+  btn.disabled = same || btn.hasAttribute('data-karma-disabled');
+  btn.style.opacity = btn.disabled ? '0.4' : '1';
+  btn.style.cursor  = btn.disabled ? 'not-allowed' : '';
+}
+function _fusionSelectRow(tr, selId) {
+  var box = document.getElementById('fusion-' + selId + '-box');
+  if (!box) return;
+  box.querySelectorAll('tr').forEach(function(r) { delete r.dataset.chosen; r.style.background = ''; });
+  tr.dataset.chosen = '1';
+  tr.style.background = 'var(--purple)';
+  document.getElementById('fusion-' + selId).value = tr.dataset.idx;
+  _fusionValidateSelects();
+}
+
 function doFusion() {
   const karmaCost = 100;
+
+  // ---- 合体実行ボタンを即座に非活性化（二重実行防止）----
+  const execBtn = document.getElementById('fusion-exec-btn');
+  if (execBtn) {
+    execBtn.disabled = true;
+    execBtn.setAttribute('data-karma-disabled', '1');
+    execBtn.style.opacity = '0.4';
+    execBtn.style.cursor  = 'not-allowed';
+  }
+
   if(GS.karma < karmaCost) {
     document.getElementById('fusion-result').innerHTML =
       `<div style="color:var(--red2);font-size:12px">カルマが足りない！ (必要: ${karmaCost} / 現在: ${GS.karma})</div>`;
     return;
   }
+
+  // ---- fusible リスト（パーティ中のものを除外した実際の選択対象）----
+  const inPartyTempleIds = new Set(
+    GS.party.filter(c => c._fromTemple).map(c => String(c._templeId))
+  );
+  const fusible = GS.monsters.filter(m => !inPartyTempleIds.has(String(m.id)));
+
   const idxA = parseInt(document.getElementById('fusion-a').value);
   const idxB = parseInt(document.getElementById('fusion-b').value);
+
   if(idxA === idxB) {
     document.getElementById('fusion-result').innerHTML =
       `<div style="color:var(--red2);font-size:12px">同じモンスターは選べません！</div>`;
+    if (execBtn) { execBtn.disabled = false; execBtn.removeAttribute('data-karma-disabled'); execBtn.style.opacity='1'; execBtn.style.cursor=''; }
+    return;
+  }
+  if (!fusible[idxA] || !fusible[idxB]) {
+    document.getElementById('fusion-result').innerHTML =
+      `<div style="color:var(--red2);font-size:12px">素材の選択が無効です。合体タブを開き直してください。</div>`;
     return;
   }
 
-  const mA = GS.monsters[idxA];
-  const mB = GS.monsters[idxB];
+  const mA = fusible[idxA];
+  const mB = fusible[idxB];
 
-  // Rank (floor) calculation
+  // ---- 素材モンスターの装備品を倉庫に送る ----
+  const _sendEquipToWarehouse = (m) => {
+    const equip = m.equipment || {};
+    Object.values(equip).forEach(iid => {
+      if (!iid) return;
+      if (typeof warehouseAdd === 'function') {
+        warehouseAdd(iid, `${m.name}の合体`);
+      } else {
+        // warehouseAdd が未定義のフォールバック（倉庫未実装環境用）
+        if (!GS.warehouse) GS.warehouse = [];
+        GS.warehouse.push(iid);
+        log(`[${getItem(iid)?.name || iid}] が倉庫に送られた（${m.name}の合体）`, 'item');
+      }
+    });
+    m.equipment = {};
+  };
+  _sendEquipToWarehouse(mA);
+  _sendEquipToWarehouse(mB);
+
+  // ---- ランク（floor）計算 ----
   const avgFloor = (mA.floor + mB.floor) / 2;
   const newFloor = Math.max(1, Math.round(avgFloor + rand(-5, 5)));
 
@@ -496,15 +645,16 @@ function doFusion() {
     equipment: {}
   };
 
-  // Remove both source monsters (remove higher index first)
-  const removeIdxs = [idxA, idxB].sort((a,b)=>b-a);
-  removeIdxs.forEach(i => GS.monsters.splice(i, 1));
+  // ---- GS.monsters から素材を削除（GS.monsters 上の実インデックスで行う）----
+  const gsIdxA = GS.monsters.indexOf(mA);
+  const gsIdxB = GS.monsters.indexOf(mB);
+  [gsIdxA, gsIdxB].filter(i => i >= 0).sort((a,b)=>b-a).forEach(i => GS.monsters.splice(i, 1));
 
   GS.monsters.push(newMonster);
   GS.karma -= karmaCost;
 
-  const el = document.getElementById('karma-disp-fusion');
-  if(el) el.textContent = GS.karma;
+  const karmaEl = document.getElementById('karma-disp-fusion');
+  if(karmaEl) karmaEl.textContent = GS.karma;
 
   const abStr = newAbilities.length ? newAbilities.join(', ') : 'なし';
   document.getElementById('fusion-result').innerHTML = `
@@ -525,7 +675,7 @@ function doFusion() {
         <div>GOLD: <span style="color:var(--gold)">${newGold}</span></div>
       </div>
       <div style="font-size:10px;margin-top:4px;color:var(--cyan)">能力: ${abStr}</div>
-      <button class="cmd-btn" style="margin-top:8px;font-size:11px" onclick="renderEvilTempleContent('fusion')">もう一度合体</button>
+      <button class="cmd-btn" style="margin-top:8px;font-size:11px" onclick="renderEvilTempleContent('fusion')">🔮 もう一度合体</button>
     </div>
   `;
   log(`${mA.name}と${mB.name}が合体し、${newName}が誕生した！（カルマ-${karmaCost}）`, 'event');
@@ -534,25 +684,55 @@ function doFusion() {
 // ---- 解放 ----
 function renderEvilTempleRelease() {
   if(!GS.monsters.length) {
-    return `<p style="color:var(--gray);font-size:12px;padding:8px">解放できるモンスターがいない。</p>`;
+    return '<p style="color:var(--gray);font-size:12px;padding:8px">解放できるモンスターがいない。</p>';
   }
-  let html = `
-    <div style="background:var(--bg3);border:1px solid var(--border);padding:8px;margin-bottom:10px;font-size:11px;color:var(--gray)">
-      モンスターを自然に帰します。装備品はパーティに返却されます。解放時に <span style="color:var(--purple)">1〜10カルマ</span> を獲得します。
-    </div>
-    <div class="item-list">`;
-  GS.monsters.forEach((m, i) => {
-    const rankBadge = rankBadgeHtml(m.rank||1);
-    html += `<div class="item-row">
-      <span style="width:28px;font-size:18px">${m.img||'👾'}</span>
-      <span class="item-name">${m.name}</span>
-      ${rankBadge}
-      <span class="item-type" style="color:var(--cyan)">HP:${m.hp}</span>
-      <span class="item-val">ATK:${m.atk}</span>
-      <button class="mini-btn drop-btn" onclick="releaseMonster(${i})">解放</button>
-    </div>`;
+  var rs = _templeSort.release;
+  var sorted = _sortMonsters(GS.monsters, rs.key, rs.asc);
+  var thS = 'padding:3px 4px;background:var(--bg2);border-bottom:1px solid var(--border2);font-size:9px;white-space:nowrap;text-align:left';
+  var tdS = 'padding:3px 4px;border-bottom:1px solid var(--border);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:middle;font-size:10px';
+  var html = '<div style="background:var(--bg3);border:1px solid var(--border);padding:6px 8px;margin-bottom:8px;font-size:11px;color:var(--gray)">'
+    + 'モンスターを自然に帰します。装備品はパーティに返却されます。解放時に <span style="color:var(--cyan)">1〜999カルマ</span> を獲得します。</div>';
+  html += '<table style="width:100%;border-collapse:collapse;table-layout:fixed">'
+    + '<colgroup>'
+    + '<col style="width:22px">'
+    + '<col style="width:32px">'
+    + '<col style="width:22px">'
+    + '<col style="width:auto">'
+    + '<col style="width:30px">'
+    + '<col style="width:30px">'
+    + '<col style="width:64px">'
+    + '<col style="width:36px">'
+    + '</colgroup>'
+    + '<thead><tr>'
+    + '<th style="' + thS + '"></th>'
+    + _mkTh('release','rank','ランク')
+    + _mkTh('release','level','Lv')
+    + _mkTh('release','name','名前')
+    + _mkTh('release','hp','HP')
+    + _mkTh('release','atk','ATK')
+    + _mkTh('release','karma','+カルマ')
+    + '<th style="' + thS + '"></th>'
+    + '</tr></thead><tbody>';
+  sorted.forEach(function(m) {
+    var origIdx = GS.monsters.indexOf(m);
+    var mLv = m.level||Math.max(1,m.floor||1);
+    var rankVal = m.rank||1;
+    var karmaBase = Math.round(rankVal * mLv * 0.5);
+    var karmaMin  = Math.min(999, karmaBase + 1);
+    var karmaMax  = Math.min(999, karmaBase + 10);
+    var rb = rankBadgeHtml(rankVal);
+    html += '<tr onmouseover="this.style.background=\'var(--bg3)\'" onmouseout="this.style.background=\'\'">'
+      + '<td style="' + tdS + ';text-align:center;font-size:14px">' + (m.img||'👾') + '</td>'
+      + '<td style="' + tdS + '">' + rb + '</td>'
+      + '<td style="' + tdS + ';color:var(--yellow)">' + mLv + '</td>'
+      + '<td style="' + tdS + '">' + m.name + '</td>'
+      + '<td style="' + tdS + ';color:var(--cyan)">' + m.hp + '</td>'
+      + '<td style="' + tdS + '">' + m.atk + '</td>'
+      + '<td style="' + tdS + ';color:var(--gold);font-size:9px">+' + karmaMin + '〜' + karmaMax + '</td>'
+      + '<td style="' + tdS + ';text-align:center"><button class="mini-btn drop-btn" style="font-size:10px;padding:1px 4px" onclick="releaseMonster(' + origIdx + ')">解放</button></td>'
+      + '</tr>';
   });
-  html += `</div>`;
+  html += '</tbody></table>';
   return html;
 }
 
@@ -573,8 +753,10 @@ function releaseMonster(idx) {
     }
   });
 
-  // Karma gain: 1-10 random
-  const karmaGain = rand(1, 10);
+  // Karma gain: ランク×レベル×0.5＋1～10（最大999）
+  var _mLv  = m.level || Math.max(1, m.floor || 1);
+  var _rank = m.rank  || 1;
+  var karmaGain = Math.min(999, Math.round(_rank * _mLv * 0.5) + rand(1, 10));
   GS.karma += karmaGain;
   renderTownGold(); // refresh karma display
 

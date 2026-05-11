@@ -30,18 +30,44 @@ function renderShopContent() {
 
 // ========== モード選択画面 ==========
 function _renderShopModeSelect(content) {
+  // アイコンを橙ベース背景で統一するヘルパー
+  const iconBadge = (emoji) =>
+    `<span style="
+      font-size:18px;line-height:1;flex-shrink:0;
+      display:flex;align-items:center;justify-content:center;
+      width:36px;height:36px;
+      background:var(--gold);
+      border-radius:4px;
+    ">${emoji}</span>`;
+
+  const cardBtn = (onclick, icon, label, sub) => `
+    <button onclick="${onclick}"
+      style="
+        display:flex;align-items:center;gap:12px;
+        width:100%;
+        background:var(--bg3);
+        border:1px solid var(--border2);
+        color:var(--white);
+        padding:12px 16px;
+        cursor:pointer;
+        font-family:var(--font-jp);
+        text-align:left;
+        border-radius:2px;
+      ">
+      ${iconBadge(icon)}
+      <span style="display:flex;flex-direction:column;gap:2px">
+        <span style="font-size:13px;font-weight:bold">${label}</span>
+        <span style="font-size:10px;color:var(--gray)">${sub}</span>
+      </span>
+    </button>`;
+
   content.innerHTML = `
     <div class="shop-mode-select">
       <div class="shop-gold-display">所持金: <span style="color:var(--gold)">${GS.gold}G</span></div>
-      <div class="shop-mode-btns">
-        <button class="shop-mode-btn" onclick="shopSetMode('buy')">
-          <span class="shop-mode-icon">🛒</span>
-          <span class="shop-mode-label">購入する</span>
-        </button>
-        <button class="shop-mode-btn" onclick="shopSetMode('sell')">
-          <span class="shop-mode-icon">💰</span>
-          <span class="shop-mode-label">売却する</span>
-        </button>
+      <div style="display:flex;flex-direction:column;gap:8px;margin-top:4px">
+        ${cardBtn("shopSetMode('buy')",  '🛒', '購入する', 'ショップの商品を購入する')}
+        ${cardBtn("shopSetMode('sell')", '💰', '売却する', '所持アイテムを売却する')}
+        ${cardBtn("_shopOpenWarehouse()", '🏛', '倉庫を開く', 'アイテムの預け・引き出し・売却')}
       </div>
     </div>`;
 }
@@ -50,6 +76,18 @@ function shopSetMode(mode) {
   _shopMode = mode;
   _shopSelectedItem = null;
   renderShopContent();
+}
+
+// 道具屋から倉庫を開く（warehouse-modal が存在しない場合もケア）
+function _shopOpenWarehouse() {
+  if (typeof openWarehouseFromModal === 'function') {
+    openWarehouseFromModal('shop-modal');
+  } else if (typeof openWarehouse === 'function') {
+    hideModal('shop-modal');
+    openWarehouse('shop-modal');
+  } else {
+    alert('倉庫システムが読み込まれていません。\nindex.html に system_town_warehouse.js の読み込みと\nwarehouse-modal の HTML が追加されているか確認してください。');
+  }
 }
 
 // ========== 購入画面 ==========
@@ -90,11 +128,8 @@ function _renderShopBuy(content) {
   }
 
   content.innerHTML = `
-    <div class="shop-header">
-      <button class="shop-back-btn" onclick="shopSetMode(null)">← 戻る</button>
-      <span class="shop-header-title">🛒 購入</span>
-      <span class="shop-header-gold">所持金: <b style="color:var(--gold)">${GS.gold}G</b></span>
-    </div>
+    <button class="mini-btn" style="margin-bottom:10px" onclick="shopSetMode(null)">← メニューに戻る</button>
+    <div class="shop-screen-title">🛒 購入 <span class="shop-screen-gold">所持金: <b style="color:var(--gold)">${GS.gold}G</b></span></div>
     <div class="item-list shop-item-list" id="shop-buy-list">${itemRows}</div>
     <div id="shop-buy-action">${buyAction}</div>`;
 }
@@ -162,11 +197,8 @@ function _renderShopSell(content) {
   ).join('');
 
   content.innerHTML = `
-    <div class="shop-header">
-      <button class="shop-back-btn" onclick="shopSetMode(null)">← 戻る</button>
-      <span class="shop-header-title">💰 売却</span>
-      <span class="shop-header-gold">所持金: <b style="color:var(--gold)">${GS.gold}G</b></span>
-    </div>
+    <button class="mini-btn" style="margin-bottom:10px" onclick="shopSetMode(null)">← メニューに戻る</button>
+    <div class="shop-screen-title">💰 売却 <span class="shop-screen-gold">所持金: <b style="color:var(--gold)">${GS.gold}G</b></span></div>
     <select id="shop-sell-char" class="shop-select shop-sell-char-select"
             onchange="renderSellItems()">${charOptions}</select>
     <button class="mini-btn drop-btn shop-sell-all-btn" onclick="doSellAll()">💰 全て売る</button>
@@ -216,7 +248,7 @@ function doSell(charId, itemIdx) {
   updateGoldDisplay();
   renderTownGold();
   // ヘッダーの所持金表示を更新
-  const goldEl = document.querySelector('.shop-header-gold b');
+  const goldEl = document.querySelector('.shop-screen-gold b');
   if (goldEl) goldEl.textContent = `${GS.gold}G`;
   // キャラ選択のインベントリ数を更新
   const sel = document.getElementById('shop-sell-char');

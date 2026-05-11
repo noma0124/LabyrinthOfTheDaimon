@@ -96,6 +96,24 @@
   white-space: nowrap;
 }
 
+/* --- 購入/売却 画面タイトル行（訓練所スタイル戻るボタンと対） --- */
+.shop-screen-title {
+  font-size: 13px;
+  color: var(--gold);
+  font-weight: bold;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.shop-screen-gold {
+  font-size: 11px;
+  color: var(--white);
+  font-weight: normal;
+  margin-left: auto;
+}
+
 /* --- アイテム一覧 --- */
 .shop-item-list {
   max-height: 220px;
@@ -175,8 +193,8 @@
   font-size: 11px;
   padding: 4px 10px;
   background: var(--bg3);
-  border: 1px solid var(--gold);
-  color: var(--gold2);
+  border: 1px solid var(--orange);
+  color: var(--orange);
   cursor: pointer;
   /* スマホタップしやすいサイズ */
   min-height: 32px;

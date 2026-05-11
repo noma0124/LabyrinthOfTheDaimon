@@ -343,24 +343,25 @@ function removeFromParty(idx) {
   if (!alreadyInTemple) {
     // キャラのステータスをモンスター形式に変換（元データへの参照を保持）
     const monsterEntry = {
-      id:         'char_' + c.id,
-      _charId:    c.id,           // 元キャラIDを保持（パーティ復帰用）
-      _charRef:   c,              // 元キャラオブジェクト参照（ステータス変更なし）
-      name:       c.name,
-      img:        c.portrait || '🧑‍🦯',
-      floor:      GS.floor || 1,
-      rank:       Math.max(1, Math.floor((c.level || 1) / 3) + 1),
-      hp:         c.hp,
-      atk:        c.str || 10,
-      def:        c.vit || 5,
-      exp:        (c.level || 1) * 10,
-      gold:       0,
-      abilities:  [],
-      group:      '人',
-      joinRate:   0,
-      joinable:   true,           // パーティ復帰可能フラグ
-      equipment:  {},
-      drops:      []
+      id:           'char_' + c.id,
+      _charId:      c.id,           // 元キャラIDを保持（パーティ復帰用）
+      _charRef:     c,              // 元キャラオブジェクト参照（ステータス変更なし）
+      _isHumanChar: true,           // 人間キャラ識別フラグ（邪教の館で「外す」非表示用）
+      name:         c.name,
+      img:          c.portrait || '🧑‍🦯',
+      floor:        GS.floor || 1,
+      rank:         Math.max(1, Math.floor((c.level || 1) / 3) + 1),
+      hp:           c.hp,
+      atk:          c.str || 10,
+      def:          c.vit || 5,
+      exp:          (c.level || 1) * 10,
+      gold:         0,
+      abilities:    [],
+      group:        '人',
+      joinRate:     0,
+      joinable:     true,           // パーティ復帰可能フラグ
+      equipment:    {},
+      drops:        []
     };
     GS.monsters.push(monsterEntry);
     log(`${c.name} が邪教の館に送られた`, 'event');

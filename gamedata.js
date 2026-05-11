@@ -93,7 +93,7 @@ const DATA = {
     { id:'thief',   name:'盗賊',   type:'front', req:{agi:11}, mageSpell:0, priestSpell:0, hpDice:6, color:'#e88020' },
     { id:'ninja',   name:'忍者',   type:'front', req:{str:15,agi:15,pie:10,luk:15}, mageSpell:4, priestSpell:0, hpDice:8, color:'#202020' },
     { id:'samurai', name:'侍',     type:'front', req:{str:15,agi:14,intel:11,pie:10}, mageSpell:3, priestSpell:0, hpDice:8, color:'#c04040' },
-    { id:'valkyrie',name:'ヴァルキリー',type:'front', req:{str:14,pie:14}, mageSpell:0, priestSpell:5, hpDice:8, color:'#40a0e0' }
+    { id:'valkyrie',name:'ヴァルキリー',type:'front', req:{str:14,pie:14}, mageSpell:0, priestSpell:5, hpDice:8, color:'#40a0e0', femaleOnly:true }
   ],
   // ==================== MAGE SPELLS ====================
   // 魔法使い系呪文リスト。jobs[].mageSpell の値以下の level の呪文が使用可能。

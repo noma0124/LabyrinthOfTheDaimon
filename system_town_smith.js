@@ -162,13 +162,26 @@ function renderSmithContent(tab) {
     { id:'weaken',    label:'🔻 弱体' },
   ];
 
+  // タブボタン共通スタイル（4つ等幅・等サイズ）
+  const TAB_STYLE = 'flex:1;font-size:12px;padding:6px 4px;min-height:32px;';
   let html = `<div style="display:flex;gap:4px;margin-bottom:10px;border-bottom:1px solid var(--border);padding-bottom:6px">`;
   TABS.forEach(t => {
     const active = t.id === tab;
-    html += `<button class="mini-btn${active ? ' equip-btn' : ''}"
+    // 各タブのアクティブ/非アクティブ色定義
+    const colors = {
+      decompose: { active: 'color:var(--white);border-color:var(--white)',   inactive: 'color:var(--gray);border-color:var(--border2)' },
+      enhance:   { active: 'color:var(--cyan);border-color:var(--cyan)',     inactive: 'color:var(--gray);border-color:var(--border2)' },
+      weaken:    { active: 'color:var(--red2);border-color:var(--red)',      inactive: 'color:var(--gray);border-color:var(--border2)' },
+    };
+    const c = colors[t.id] || colors.decompose;
+    html += `<button class="mini-btn"
       onclick="renderSmithContent('${t.id}')"
-      style="flex:1;font-size:12px;padding:5px">${t.label}</button>`;
+      style="${TAB_STYLE}${active ? c.active : c.inactive}">${t.label}</button>`;
   });
+  // 倉庫ボタン（常に金色・等幅）
+  html += `<button class="mini-btn"
+    onclick="openWarehouseFromModal('smith-modal')"
+    style="${TAB_STYLE}color:var(--gold);border-color:var(--gold)">🏛 倉庫</button>`;
   html += `</div>`;
 
   html += _smithStoneBar();

@@ -42,8 +42,12 @@
 
 // ==================== CHARACTER SYSTEM ====================
 function calcStats(char) {
+  if(char.isMonster || !char.baseStats || !char.race || !char.job) {
+    return { str:0, agi:0, intel:0, pie:0, vit:0, luk:0 };
+  }
   const race = getRace(char.race);
   const job  = getJob(char.job);
+  if(!race || !race.bonus) return { str:0, agi:0, intel:0, pie:0, vit:0, luk:0 };
   const base = char.baseStats;
   const bonus = race.bonus;
   return {
@@ -57,13 +61,17 @@ function calcStats(char) {
 }
 
 function calcMaxHP(char) {
+  if(char.isMonster || !char.baseStats) return char.maxHp || 0;
   const job = getJob(char.job);
+  if(!job) return char.maxHp || 0;
   const stats = calcStats(char);
   return Math.max(1, Math.floor((job.hpDice/2 + stats.vit/4) * char.level) + char.level * 2);
 }
 
 function calcMaxMP(char) {
+  if(char.isMonster || !char.baseStats) return char.maxMp || 0;
   const job = getJob(char.job);
+  if(!job) return char.maxMp || 0;
   const stats = calcStats(char);
   if(job.mageSpell===0 && job.priestSpell===0) return 0;
   const spellLvl = Math.max(job.mageSpell, job.priestSpell);
@@ -71,21 +79,22 @@ function calcMaxMP(char) {
 }
 
 function calcATK(char) {
+  if(char.isMonster || !char.baseStats) return char.atk || 0;
   const stats = calcStats(char);
   let atk = Math.floor(stats.str * 0.5) + char.level;
-  // Add equipment atk
   for(const slot of DATA.equipSlots) {
-    const iid = char.equip[slot];
+    const iid = char.equip?.[slot];
     if(iid) { const item = getItem(iid); if(item) atk += (item.atk||0); }
   }
   return atk;
 }
 
 function calcDEF(char) {
+  if(char.isMonster || !char.baseStats) return char.def || 0;
   const stats = calcStats(char);
   let def = Math.floor(stats.agi * 0.3) + Math.floor(char.level * 0.5);
   for(const slot of DATA.equipSlots) {
-    const iid = char.equip[slot];
+    const iid = char.equip?.[slot];
     if(iid) { const item = getItem(iid); if(item) def += (item.def||0); }
   }
   return def;
@@ -93,10 +102,11 @@ function calcDEF(char) {
 
 function calcEXPNeeded(level) { return Math.floor(level * level * 100 * (1 + level * 0.1)); }
 
-function createChar(name, race, job, baseStats) {
+function createChar(name, race, job, baseStats, gender='male') {
   return {
     id: Date.now() + Math.random(),
     name, race, job,
+    gender, // 'male' | 'female'
     level: 1,
     exp: 0,
     hp: 0, maxHp: 0,

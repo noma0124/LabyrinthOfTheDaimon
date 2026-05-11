@@ -67,7 +67,8 @@ const GS = {
   battleState: null,
   autoMode: false,
   returnFloor: 1,
-  currentFloorData: null
+  currentFloorData: null,
+  warehouse: []       // 倉庫保管アイテムID配列（最大10000件）
 };
 
 // ==================== UTILITIES ====================

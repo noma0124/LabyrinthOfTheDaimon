@@ -53,10 +53,11 @@ function updatePartyDisplay() {
 
   let html = '';
   GS.party.forEach((c, i) => {
-    const dead  = !c.isAlive || c.status.includes('dead');
-    const stone = c.status.includes('stone');
-    const jobName = c.isMonster ? '怪' : (getJob(c.job)?.name || c.job || '');
-    const icon = dead ? '💀' : stone ? '🗿' : c.status.includes('poison') ? '☠' : '';
+    const status = c.status || [];
+    const dead  = c.isMonster ? c.hp <= 0 : (!c.isAlive || status.includes('dead'));
+    const stone = status.includes('stone');
+    const jobName = c.isMonster ? (c.rank ? `${c.rank}級` : '怪') : (getJob(c.job)?.name || c.job || '');
+    const icon = dead ? '💀' : stone ? '🗿' : status.includes('poison') ? '☠' : '';
     const rowClass = ['party-row', dead || stone ? 'dead' : '', c.isMonster ? 'monster-member' : ''].filter(Boolean).join(' ');
 
     html += `<div class="${rowClass}" onclick="showCharDetail(${i})">
@@ -95,6 +96,38 @@ function updateQuickInfo() {
 function showCharDetail(idx) {
   const c=GS.party[idx];
   if(!c) return;
+
+  // モンスターメンバーは専用の簡易ステータス表示
+  if(c.isMonster) {
+    const content=document.getElementById('char-modal-content');
+    document.getElementById('char-modal-title').textContent=`${c.name} のステータス`;
+    const status = c.status || [];
+    const hpPct = c.maxHp ? Math.round(c.hp/c.maxHp*100) : 0;
+    const hpCol = hpPct>50?'var(--green2)':hpPct>25?'var(--yellow)':'var(--red2)';
+    content.innerHTML=`
+      <div style="padding:8px;font-size:12px;">
+        <div style="color:var(--green2);font-size:13px;font-weight:bold;margin-bottom:8px;">🐾 ${c.name}</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px;">
+          <div><span style="color:var(--gray)">ランク</span> ${c.rank||'?'}級</div>
+          <div><span style="color:var(--gray)">Lv</span> ${c.level||1}</div>
+          <div><span style="color:var(--gray)">HP</span> <span style="color:${hpCol}">${c.hp}/${c.maxHp}</span></div>
+          <div><span style="color:var(--gray)">MP</span> <span style="color:var(--blue2)">${c.mp||0}/${c.maxMp||0}</span></div>
+          <div><span style="color:var(--gray)">ATK</span> ${c.atk||0}</div>
+          <div><span style="color:var(--gray)">DEF</span> ${c.def||0}</div>
+          <div><span style="color:var(--gray)">EXP</span> ${c.exp||0}</div>
+          <div><span style="color:var(--gray)">状態</span> ${status.length?statusBadges(c):'<span style="color:var(--green2)">正常</span>'}</div>
+        </div>
+        ${c.abilities?.length?`<div style="color:var(--gray);font-size:11px;margin-top:4px;">スキル: ${c.abilities.map(a=>a.name||a).join('、')}</div>`:''}
+      </div>
+      <div style="padding:4px 8px;">
+        ${idx>0?`<button class="cmd-btn" onclick="showCharDetail(${idx-1})">◀ 前</button>`:''}
+        ${idx<GS.party.length-1?`<button class="cmd-btn" onclick="showCharDetail(${idx+1})">次 ▶</button>`:''}
+        <button class="cmd-btn" onclick="hideModal('char-modal')">閉じる</button>
+      </div>`;
+    showModal('char-modal');
+    return;
+  }
+
   const stats=calcStats(c);
   const content=document.getElementById('char-modal-content');
   document.getElementById('char-modal-title').textContent=`${c.name} のステータス`;
@@ -107,10 +140,10 @@ function showCharDetail(idx) {
 
   // Build equip slots HTML with inline equip UI
   const equipSlotsHtml=DATA.equipSlots.map(slot=>{
-    const iid=c.equip[slot];
+    const iid=(c.equip||{})[slot];
     const item=iid?getItem(iid):null;
     // Find compatible items from inventory for this slot
-    const compatible=c.inventory.filter(iid2=>{
+    const compatible=(c.inventory||[]).filter(iid2=>{
       const it=getItem(iid2);
       if(!it||it.slot!==slot) return false;
       if(it.classes&&!it.classes.includes(c.job)) return false;

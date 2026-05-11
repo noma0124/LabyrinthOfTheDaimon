@@ -4,7 +4,7 @@
  */
 
 // ========== TRAINING ==========
-let _createState={race:null,job:null,name:'',bonusStats:{str:10,agi:10,intel:10,pie:10,vit:10,luk:10},bonus:0};
+let _createState={gender:null,race:null,job:null,name:'',bonusStats:{str:10,agi:10,intel:10,pie:10,vit:10,luk:10},bonus:0};
 
 // ポートレート選択肢
 const PORTRAITS = [
@@ -200,12 +200,23 @@ function confirmDeleteChar(charId) {
 
 function renderCharCreate() {
   const bonusTotal=rand(10,60);
-  _createState={race:null,job:null,name:'',bonusStats:{str:10,agi:10,intel:10,pie:10,vit:10,luk:10},bonus:bonusTotal,remaining:bonusTotal};
+  _createState={gender:null,race:null,job:null,name:'',bonusStats:{str:10,agi:10,intel:10,pie:10,vit:10,luk:10},bonus:bonusTotal,remaining:bonusTotal};
   return `
     <div style="margin-bottom:8px">
       <input id="new-char-name" placeholder="名前を入力" maxlength="10" style="background:var(--bg3);border:1px solid var(--border2);color:var(--white);padding:6px 8px;font-size:13px;width:200px;font-family:var(--font-jp)">
     </div>
-    <div class="stat-title">種族を選ぶ</div>
+    <div class="stat-title">性別を選ぶ</div>
+    <div style="display:flex;gap:8px;margin-bottom:4px" id="gender-select">
+      <div class="race-card" id="gc-male" onclick="selectGender('male')" style="flex:1;text-align:center">
+        <div style="font-size:20px">♂</div>
+        <div style="font-size:12px">男性</div>
+      </div>
+      <div class="race-card" id="gc-female" onclick="selectGender('female')" style="flex:1;text-align:center">
+        <div style="font-size:20px">♀</div>
+        <div style="font-size:12px">女性</div>
+      </div>
+    </div>
+    <div class="stat-title" style="margin-top:8px">種族を選ぶ</div>
     <div class="create-grid" id="race-select">
       ${DATA.races.map(r=>`<div class="race-card" onclick="selectRace('${r.id}')" id="rc-${r.id}">
         <div>${r.name}</div>
@@ -216,9 +227,11 @@ function renderCharCreate() {
     <div class="create-grid" id="job-select">
       ${DATA.jobs.map(j=>{
         const reqStr=Object.entries(j.req).map(([k,v])=>`${k}≥${v}`).join(' ');
-        return `<div class="job-card" onclick="selectJob('${j.id}')" id="jc-${j.id}">
+        const femaleTag=j.femaleOnly?`<div style="font-size:9px;color:var(--gold2);margin-top:1px">♀ 女性限定</div>`:'';
+        return `<div class="job-card disabled" onclick="selectJob('${j.id}')" id="jc-${j.id}">
           <div class="job-name" style="color:${j.color}">${j.name}</div>
           <div class="job-req">${reqStr}</div>
+          ${femaleTag}
         </div>`;
       }).join('')}
     </div>
@@ -240,10 +253,27 @@ function renderCharCreate() {
   `;
 }
 
+function selectGender(id) {
+  _createState.gender=id;
+  document.querySelectorAll('#gender-select .race-card').forEach(el=>el.classList.remove('selected'));
+  document.getElementById('gc-'+id)?.classList.add('selected');
+  // 性別変更で職業の選択可否が変わるため再評価
+  if(_createState.job) {
+    const job=getJob(_createState.job);
+    if(job?.femaleOnly && id!=='female') {
+      _createState.job=null;
+      document.querySelectorAll('.job-card').forEach(el=>el.classList.remove('selected'));
+    }
+  }
+  updateJobAvailability();
+}
+
 function selectRace(id) {
   _createState.race=id;
   document.querySelectorAll('.race-card').forEach(el=>el.classList.remove('selected'));
   document.getElementById('rc-'+id)?.classList.add('selected');
+  // 性別ボタンの選択状態を維持
+  if(_createState.gender) document.getElementById('gc-'+_createState.gender)?.classList.add('selected');
   updateJobAvailability();
 }
 
@@ -257,16 +287,18 @@ function selectJob(id) {
 }
 
 function updateJobAvailability() {
-  if(!_createState.race) return;
-  const race=getRace(_createState.race);
+  const stats=_createState.bonusStats;
+  const gender=_createState.gender;
   DATA.jobs.forEach(j=>{
     const card=document.getElementById('jc-'+j.id);
     if(!card) return;
-    const allowed=race.jobs.includes(j.id);
-    // Check stats
-    const stats=_createState.bonusStats;
+    // 性別が未選択の場合はすべて無効
+    if(!gender) { card.classList.add('disabled'); return; }
+    // ヴァルキリーは女性のみ
+    if(j.femaleOnly && gender!=='female') { card.classList.add('disabled'); return; }
+    // ステータス要件チェック（種族ボーナスは未加算のベース値で判定）
     const meetsReq=Object.entries(j.req).every(([k,v])=>stats[k]>=v);
-    if(!allowed||!meetsReq) card.classList.add('disabled');
+    if(!meetsReq) card.classList.add('disabled');
     else card.classList.remove('disabled');
   });
 }
@@ -288,12 +320,14 @@ function confirmCreate() {
   const nameEl=document.getElementById('new-char-name');
   const name=nameEl?.value.trim();
   if(!name) { alert('名前を入力してください'); return; }
+  if(!_createState.gender) { alert('性別を選んでください'); return; }
   if(!_createState.race) { alert('種族を選んでください'); return; }
   if(!_createState.job) { alert('職業を選んでください'); return; }
-  const c=createChar(name, _createState.race, _createState.job, {..._createState.bonusStats});
+  const c=createChar(name, _createState.race, _createState.job, {..._createState.bonusStats}, _createState.gender);
   initCharHP(c);
   GS.roster.push(c);
-  log(`${name}（${getRace(_createState.race)?.name} ${getJob(_createState.job)?.name}）を作成した！`,'event');
+  const genderLabel=_createState.gender==='female'?'♀':'♂';
+  log(`${name}（${genderLabel} ${getRace(_createState.race)?.name} ${getJob(_createState.job)?.name}）を作成した！`,'event');
   hideModal('training-modal');
   openTavern();
 }
@@ -325,12 +359,14 @@ function showJobOptions(charId) {
     <div class="create-grid">`;
   DATA.jobs.forEach(j=>{
     if(j.id===c.job) return; // current job
-    const allowed=race?.jobs.includes(j.id);
+    const genderOk = !j.femaleOnly || c.gender==='female';
     const meetsReq=Object.entries(j.req).every(([k,v])=>stats[k]>=v);
-    const canChange=allowed&&meetsReq;
-    html+=`<div class="job-card ${canChange?'':'disabled'}" onclick="${canChange?`doClassChange('${charId}','${j.id}')`:''}" title="${canChange?'転職可能':'条件不足'}">
+    const canChange=genderOk&&meetsReq;
+    const disabledReason=!genderOk?'♀ 女性専用':'条件不足';
+    html+=`<div class="job-card ${canChange?'':'disabled'}" onclick="${canChange?`doClassChange('${charId}','${j.id}')`:''}" title="${canChange?'転職可能':disabledReason}">
       <div class="job-name" style="color:${j.color}">${j.name}</div>
       <div class="job-req">${Object.entries(j.req).map(([k,v])=>`${k}≥${v}`).join(' ')}</div>
+      ${j.femaleOnly?`<div style="font-size:9px;color:var(--gold2)">♀ 女性限定</div>`:''}
     </div>`;
   });
   html+='</div>';
