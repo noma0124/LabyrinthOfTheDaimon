@@ -33,11 +33,7 @@ function _renderShopModeSelect(content) {
   // アイコンを橙ベース背景で統一するヘルパー
   const iconBadge = (emoji) =>
     `<span style="
-      font-size:18px;line-height:1;flex-shrink:0;
-      display:flex;align-items:center;justify-content:center;
-      width:36px;height:36px;
-      background:var(--gold);
-      border-radius:4px;
+      font-size:22px;line-height:1;flex-shrink:0;
     ">${emoji}</span>`;
 
   const cardBtn = (onclick, icon, label, sub) => `
