@@ -716,7 +716,7 @@ body {
 }
 .race-card:hover, .job-card:hover { border-color: var(--gold); color: var(--gold2); }
 .race-card.selected, .job-card.selected { border-color: var(--gold2); background: var(--border); color: var(--gold2); }
-.race-card.disabled, .job-card.disabled { opacity: 0.3; cursor: not-allowed; }
+.race-card.disabled, .job-card.disabled { opacity: 0.5; cursor: not-allowed; }
 
 /* ====== SHOP ====== */
 .shop-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
@@ -744,8 +744,8 @@ body {
 .separator { height: 1px; background: var(--border); margin: 8px 0; }
 
 /* 転職 */
-.job-req { font-size: 9px; color: var(--gray); margin-top: 2px; }
-.job-name { font-size: 12px; font-weight: bold; }
+.job-req { font-size: 9px; color: var(--white); margin-top: 2px; }
+.job-name { font-size: 12px; font-weight: bold; color: var(--white); }
 
 /* Monster join overlay */
 #monster-join-overlay {
@@ -888,6 +888,7 @@ body {
   font-family: var(--font-jp);
 }
 .mini-btn:hover { border-color: var(--gold); color: var(--gold2); }
+.mini-btn.back-btn { font-size: 12px; padding: 4px 10px; min-height: 30px; }
 .mini-btn.equip-btn { border-color: var(--cyan); color: var(--cyan); }
 .mini-btn.equip-btn:hover { background: var(--border); color: var(--gold2); }
 .mini-btn.use-btn { border-color: var(--green); color: var(--green2); }

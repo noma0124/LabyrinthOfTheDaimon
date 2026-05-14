@@ -46,7 +46,7 @@ function renderTrainingMenu() {
 }
 
 function showTrainingSection(section) {
-  const backBtn = `<button class="mini-btn" style="margin-bottom:12px" onclick="renderTrainingMenu()">← メニューに戻る</button>`;
+  const backBtn = `<button class="mini-btn back-btn" style="margin-bottom:12px" onclick="renderTrainingMenu()">← メニューに戻る</button>`;
   let html = backBtn;
   if(section==='create')   html += renderCharCreate();
   if(section==='inspect')  html += renderTrainingInspect();
@@ -229,7 +229,7 @@ function renderCharCreate() {
         const reqStr=Object.entries(j.req).map(([k,v])=>`${k}≥${v}`).join(' ');
         const femaleTag=j.femaleOnly?`<div style="font-size:9px;color:var(--gold2);margin-top:1px">♀ 女性限定</div>`:'';
         return `<div class="job-card disabled" onclick="selectJob('${j.id}')" id="jc-${j.id}">
-          <div class="job-name" style="color:${j.color}">${j.name}</div>
+          <div class="job-name">${j.name}</div>
           <div class="job-req">${reqStr}</div>
           ${femaleTag}
         </div>`;
@@ -240,10 +240,10 @@ function renderCharCreate() {
       <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:6px">
         ${['str','agi','intel','pie','vit','luk'].map(s=>`
           <div style="background:var(--bg);border:1px solid var(--border);padding:4px">
-            <div style="font-size:9px;color:var(--gray)">${{str:'力',agi:'素早',intel:'知性',pie:'信仰',vit:'生命',luk:'運'}[s]}</div>
+            <div style="font-size:9px;color:var(--white)">${{str:'力',agi:'素早',intel:'知性',pie:'信仰',vit:'生命',luk:'運'}[s]}</div>
             <div style="display:flex;align-items:center;gap:3px;margin-top:2px">
               <button onclick="adjustStat('${s}',-1)" style="width:20px;height:20px;background:var(--bg3);border:1px solid var(--border);color:var(--white);cursor:pointer;font-size:14px;line-height:1">-</button>
-              <span id="stat-${s}" style="font-family:var(--font-mono);font-size:13px;width:28px;text-align:center">${_createState.bonusStats[s]}</span>
+              <span id="stat-${s}" style="font-family:var(--font-mono);font-size:13px;width:28px;text-align:center;color:var(--white)">${_createState.bonusStats[s]}</span>
               <button onclick="adjustStat('${s}',1)" style="width:20px;height:20px;background:var(--bg3);border:1px solid var(--border);color:var(--white);cursor:pointer;font-size:14px;line-height:1">+</button>
             </div>
           </div>`).join('')}
@@ -364,7 +364,7 @@ function showJobOptions(charId) {
     const canChange=genderOk&&meetsReq;
     const disabledReason=!genderOk?'♀ 女性専用':'条件不足';
     html+=`<div class="job-card ${canChange?'':'disabled'}" onclick="${canChange?`doClassChange('${charId}','${j.id}')`:''}" title="${canChange?'転職可能':disabledReason}">
-      <div class="job-name" style="color:${j.color}">${j.name}</div>
+      <div class="job-name">${j.name}</div>
       <div class="job-req">${Object.entries(j.req).map(([k,v])=>`${k}≥${v}`).join(' ')}</div>
       ${j.femaleOnly?`<div style="font-size:9px;color:var(--gold2)">♀ 女性限定</div>`:''}
     </div>`;

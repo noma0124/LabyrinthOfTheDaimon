@@ -104,7 +104,7 @@ function renderWarehouseContent() {
 
   // ---- 戻るボタン（呼び出し元がある場合のみ） ----
   let html = _whFromModal
-    ? `<button class="mini-btn" style="margin-bottom:10px" onclick="_whReturnToModal()">← メニューに戻る</button>`
+    ? `<button class="mini-btn back-btn" style="margin-bottom:10px" onclick="_whReturnToModal()">← メニューに戻る</button>`
     : '';
 
   // ---- 統計バー ----
