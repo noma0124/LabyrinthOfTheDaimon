@@ -1,0 +1,37 @@
+# ============================================================
+#  LabyrinthOfTheDaimon — .gitignore（プロジェクトルート用）
+# ============================================================
+
+# Androidビルド成果物（巨大なので除外）
+app/build/
+build/
+.gradle/
+
+# デプロイ用一時フォルダ（deployスクリプトが作成）
+deploy/
+
+# 旧バージョンバックアップ（Gitのブランチで管理するため不要）
+old/
+
+# 署名キー（絶対にGitに上げてはいけない！）
+android.keystore
+*.keystore
+*.jks
+
+# Android APK/AAB（成果物）
+*.apk
+*.aab
+*.idsig
+
+# OS生成ファイル
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# エディタ設定
+.vscode/
+.idea/
+*.iml
+
+# ログ
+*.log

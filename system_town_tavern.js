@@ -2,6 +2,10 @@
  * system_town_tavern.js — 酒場（PT編成・アイテム管理）
  * 依存: system_town_common.js
  * [SP対応済み] スマートフォン最適化版
+ *
+ * 修正: 実機スマホでのパーティ入替不可バグを修正
+ *   - .tavern-member の onclick と addEventListener('click') が競合していた問題を解消
+ *   - タップ → 選択ハイライト、ステータス確認は「詳細」ボタンで分離
  */
 
 // ========== ユーティリティ ==========
@@ -12,13 +16,20 @@ function _isMobile() {
 
 // ========== TAVERN ==========
 function openTavern() {
+  // ロード後にpartyとrosterの参照が切れている場合を修復（IDで再接続）
+  GS.party = GS.party.map(pc => {
+    const inRoster = GS.roster.find(rc => String(rc.id) === String(pc.id));
+    return inRoster || pc;
+  });
   renderTavernContent();
   showModal('tavern-modal');
 }
 
 function renderTavernContent() {
   const content = document.getElementById('tavern-content');
-  const bench = GS.roster.filter(c => !GS.party.includes(c));
+  // ロード後にオブジェクト参照が切れても正しく動くようIDで比較
+  const partyIds = new Set(GS.party.map(c => String(c.id)));
+  const bench = GS.roster.filter(c => !partyIds.has(String(c.id)));
   const sp = _isMobile();
 
   // ---- スマホ: 縦1カラム / PC: 2カラム ----
@@ -45,7 +56,10 @@ function renderTavernContent() {
     const rowColor = i < 3 ? 'var(--orange)' : 'var(--cyan)';
     const jobInfo = getJob(c.job);
 
-    // スマホ: 行の高さ・フォントを大きく、ボタンのタップ領域を確保
+    // ★修正ポイント:
+    //   onclick を削除し、data-idx のみ保持。
+    //   ステータス確認は「詳細」ボタン (ontavernDetail) で行う。
+    //   行タップ自体は addEventListener 側で _tavernSelected をセットする。
     html += `
       <div class="item-row tavern-member"
            data-idx="${i}"
@@ -58,8 +72,7 @@ function renderTavernContent() {
              min-height:${sp ? 44 : 32}px;
              align-items:center;
              display:flex;gap:${sp ? 6 : 4}px;
-           "
-           onclick="openCharStatusModal(GS.party[${i}],'town')">
+           ">
         <!-- ポジションバッジ -->
         <span style="
           font-size:${sp ? 11 : 9}px;
@@ -93,6 +106,14 @@ function renderTavernContent() {
           min-width:${sp ? 28 : 24}px;
           text-align:right;
         ">Lv${c.level}</span>
+        <!-- 詳細ボタン: ステータス確認用（行タップと分離） -->
+        <button class="mini-btn"
+                onclick="event.stopPropagation();openCharStatusModal(GS.party[${i}],'town')"
+                style="
+                  flex-shrink:0;
+                  color:var(--cyan);
+                  ${sp ? 'min-width:44px;min-height:36px;font-size:12px;padding:4px 6px;' : 'font-size:9px;'}
+                ">詳細</button>
         <!-- 外すボタン: スマホは十分なタップ領域 -->
         <button class="mini-btn drop-btn"
                 onclick="event.stopPropagation();removeFromParty(${i})"
@@ -139,8 +160,7 @@ function renderTavernContent() {
              margin-bottom:${sp ? 5 : 3}px;
              align-items:center;
              display:flex;gap:${sp ? 6 : 4}px;
-           "
-           onclick="openCharStatusModal(GS.roster.find(r=>String(r.id)==='${c.id}'),'town')">
+           ">
         <span style="font-size:${sp ? 22 : 18}px;flex-shrink:0;line-height:1">${c.portrait || '🧑‍🦯'}</span>
         <span class="item-name" style="
           font-size:${sp ? 13 : 11}px;
@@ -161,6 +181,14 @@ function renderTavernContent() {
           min-width:${sp ? 28 : 24}px;
           text-align:right;
         ">Lv${c.level}</span>
+        <!-- 詳細ボタン -->
+        <button class="mini-btn"
+                onclick="event.stopPropagation();openCharStatusModal(GS.roster.find(r=>String(r.id)==='${c.id}'),'town')"
+                style="
+                  flex-shrink:0;
+                  color:var(--cyan);
+                  ${sp ? 'min-width:44px;min-height:36px;font-size:12px;padding:4px 6px;' : 'font-size:9px;'}
+                ">詳細</button>
         <button class="mini-btn use-btn"
                 onclick="event.stopPropagation();addToParty('${c.id}')"
                 style="
@@ -181,9 +209,16 @@ function renderTavernContent() {
 
   content.innerHTML = html;
 
-  // ---- タップ選択ハイライト ----
+  // ========================================================
+  // ★修正ポイント: タップ選択ハイライト
+  //   onclick 属性を排除し、addEventListener のみで管理。
+  //   これにより実機スマホで onclick との競合が発生しない。
+  // ========================================================
   document.querySelectorAll('.tavern-member').forEach(row => {
-    row.addEventListener('click', () => {
+    row.addEventListener('click', (e) => {
+      // ボタン類のタップは選択に反応させない
+      if (e.target.closest('button')) return;
+
       document.querySelectorAll('.tavern-member').forEach(r => r.style.outline = '');
       row.style.outline = '2px solid var(--gold)';
       window._tavernSelected = parseInt(row.dataset.idx);
@@ -335,47 +370,20 @@ function removeFromParty(idx) {
   const c = GS.party[idx];
   if (!c) return;
 
-  // キャラクターをモンスターインスタンスとして邪教の館に送る
-  if (!GS.monsters) GS.monsters = [];
-
-  // 既に登録済みでなければ追加（重複防止）
-  const alreadyInTemple = GS.monsters.some(m => m._charId && String(m._charId) === String(c.id));
-  if (!alreadyInTemple) {
-    // キャラのステータスをモンスター形式に変換（元データへの参照を保持）
-    const monsterEntry = {
-      id:           'char_' + c.id,
-      _charId:      c.id,           // 元キャラIDを保持（パーティ復帰用）
-      _charRef:     c,              // 元キャラオブジェクト参照（ステータス変更なし）
-      _isHumanChar: true,           // 人間キャラ識別フラグ（邪教の館で「外す」非表示用）
-      name:         c.name,
-      img:          c.portrait || '🧑‍🦯',
-      floor:        GS.floor || 1,
-      rank:         Math.max(1, Math.floor((c.level || 1) / 3) + 1),
-      hp:           c.hp,
-      atk:          c.str || 10,
-      def:          c.vit || 5,
-      exp:          (c.level || 1) * 10,
-      gold:         0,
-      abilities:    [],
-      group:        '人',
-      joinRate:     0,
-      joinable:     true,           // パーティ復帰可能フラグ
-      equipment:    {},
-      drops:        []
-    };
-    GS.monsters.push(monsterEntry);
-    log(`${c.name} が邪教の館に送られた`, 'event');
-  }
-
+  // パーティから外すだけ。レベル・ステータス・装備はそのまま roster に残る。
   GS.party.splice(idx, 1);
+  log(`${c.name} をパーティから外した`, 'sys');
   renderTavernContent();
   updatePartyDisplay();
 }
 
 function addToParty(charId) {
   if (GS.party.length >= 6) { alert('パーティが満員！'); return; }
-  const c = GS.roster.find(r => r.id == charId);
+  // 既にパーティにいる場合は何もしない（ロード後の重複防止）
+  if (GS.party.some(c => String(c.id) === String(charId))) return;
+  const c = GS.roster.find(r => String(r.id) === String(charId));
   if (!c) return;
   GS.party.push(c);
   renderTavernContent();
+  updatePartyDisplay();
 }
